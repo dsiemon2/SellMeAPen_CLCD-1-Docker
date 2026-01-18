@@ -1,0 +1,602 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USERS - Authentication and RBAC
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  role          String    @default("user") // user, admin
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      UserSession[]
+  salesSessions SalesSession[]
+}
+
+model UserSession {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+// ============================================
+// SALES SESSIONS - Track each training session
+// ============================================
+
+model SalesSession {
+  id              String   @id @default(cuid())
+  sessionId       String   @unique
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id])
+  userName        String?
+  startedAt       DateTime @default(now())
+  endedAt         DateTime?
+  outcome         String   @default("in_progress") // in_progress, sale_made, no_sale, abandoned
+  saleConfirmed   Boolean  @default(false)
+  currentPhase    String   @default("greeting") // greeting, discovery, positioning, closing, completed
+  userNeeds       String   @default("{}") // JSON: discovered user preferences
+  techniquesUsed  String   @default("[]") // JSON array of techniques used
+  closingAttempts Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  messages        Message[]
+  analytics       SessionAnalytics?
+}
+
+model Message {
+  id            String       @id @default(cuid())
+  sessionId     String
+  session       SalesSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role          String       // user, assistant, system
+  content       String
+  phase         String?      // Which sales phase this message was in
+  sentiment     String?      // positive, negative, neutral, interested, skeptical
+  keywords      String       @default("[]") // JSON array of detected keywords
+  createdAt     DateTime     @default(now())
+}
+
+// ============================================
+// SESSION ANALYTICS - Learning data per session
+// ============================================
+
+model SessionAnalytics {
+  id                    String       @id @default(cuid())
+  sessionId             String       @unique
+  session               SalesSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  totalMessages         Int          @default(0)
+  userMessageCount      Int          @default(0)
+  aiMessageCount        Int          @default(0)
+  avgResponseLength     Float        @default(0)
+  discoveryQuestionsAsked Int        @default(0)
+  objectionCount        Int          @default(0)
+  positiveSignals       Int          @default(0)
+  negativeSignals       Int          @default(0)
+  timeToFirstInterest   Int?         // Seconds until first positive signal
+  timeToClose           Int?         // Seconds until sale confirmed
+  successfulTechniques  String       @default("[]") // JSON array
+  failedTechniques      String       @default("[]") // JSON array
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+}
+
+// ============================================
+// CONFIGURATION - Admin configurable settings
+// ============================================
+
+model AppConfig {
+  id                  String   @id @default(cuid())
+  appName             String   @default("AI Sales Training")
+  greeting            String   @default("Welcome to AI Sales, Sell Me a Pen Training App! When you're ready, just say 'Sell me a pen' to begin your training session.")
+  triggerPhrase       String   @default("sell me a pen")
+  selectedVoice       String   @default("alloy")
+  aiPersona           String   @default("confident, friendly sales professional")
+  successKeywords     String   @default("[\"yes\", \"i'll take it\", \"i'll buy it\", \"sold\", \"deal\", \"i want it\", \"sign me up\", \"where do i sign\", \"take my money\", \"i'm in\", \"let's do it\", \"you got me\"]")
+  objectionKeywords   String   @default("[\"no\", \"not interested\", \"too expensive\", \"i don't need\", \"maybe later\", \"let me think\", \"not now\"]")
+  maxClosingAttempts  Int      @default(3)
+  // Mode: ai_sells (AI is salesperson) or user_sells (User is salesperson)
+  salesMode           String   @default("ai_sells")
+  // Difficulty for user_sells mode: easy, medium, hard, expert
+  difficulty          String   @default("medium")
+  // Primary language code
+  primaryLanguage     String   @default("en")
+  // Selected AI Provider
+  selectedProviderId  String?
+  updatedAt           DateTime @updatedAt
+}
+
+// ============================================
+// AI PROVIDERS - Multi-provider AI configuration
+// ============================================
+
+model AIProvider {
+  id              String   @id @default(cuid())
+  code            String   @unique // openai, anthropic, gemini, deepseek, groq, mistral, grok
+  name            String   // Display name
+  description     String?
+  apiKey          String?  // Encrypted API key
+  apiBaseUrl      String?  // Custom base URL for self-hosted/alternative endpoints
+  availableModels String   @default("[]") // JSON array of available models
+  defaultModel    String?  // Currently selected model
+  isActive        Boolean  @default(true)  // Whether provider is available for selection
+  isConfigured    Boolean  @default(false) // Whether API key is set
+  isSelected      Boolean  @default(false) // Currently active provider (only one true)
+  displayOrder    Int      @default(0)
+  temperature     Float    @default(0.7)
+  maxTokens       Int      @default(4096)
+  settings        String   @default("{}") // JSON for provider-specific settings
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// LANGUAGES - Multi-language support
+// ============================================
+
+model Language {
+  id          String   @id @default(cuid())
+  code        String   @unique // en, es, fr, de, etc.
+  name        String   // English, Spanish, French, etc.
+  nativeName  String   // English, Español, Français, etc.
+  flag        String   @default("🌐") // Emoji flag
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  documents   KnowledgeDocument[]
+}
+
+// ============================================
+// PEN PRODUCT - The pen being sold
+// ============================================
+
+model PenProduct {
+  id              String   @id @default(cuid())
+  name            String   @default("Executive Signature Pen")
+  tagline         String   @default("Make Every Signature Count")
+  basePrice       Float    @default(49.99)
+  premiumPrice    Float    @default(129.99)
+  features        String   @default("[\"Precision-engineered tungsten carbide tip\", \"German-engineered ink flow system\", \"Aircraft-grade aluminum body\", \"Lifetime warranty\", \"Personalized engraving available\"]")
+  benefits        String   @default("[\"Projects confidence and professionalism\", \"Never skips or smears\", \"Comfortable for extended writing\", \"Makes a lasting impression\", \"Perfect balance and weight\"]")
+  variants        String   @default("[\"Matte Black\", \"Brushed Silver\", \"Rose Gold\", \"Carbon Fiber\"]")
+  scarcityMessage String   @default("Limited edition - only 50 remain in this finish")
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// SALES TECHNIQUES - Configurable strategies
+// ============================================
+
+model SalesTechnique {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  category    String   // discovery, positioning, persuasion, closing, objection_handling
+  description String
+  script      String   // Example script/approach
+  enabled     Boolean  @default(true)
+  successRate Float    @default(0) // Calculated from analytics
+  usageCount  Int      @default(0)
+  successCount Int     @default(0)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============================================
+// DISCOVERY QUESTIONS - Questions to ask users
+// ============================================
+
+model DiscoveryQuestion {
+  id          String   @id @default(cuid())
+  question    String
+  purpose     String   // What this question reveals (e.g., "identifies writing frequency")
+  followUp    String?  // Suggested follow-up question
+  targetNeed  String   // Which need this addresses: professionalism, reliability, creativity, organization
+  enabled     Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+// ============================================
+// POSITIONING ANGLES - How to frame the pen
+// ============================================
+
+model PositioningAngle {
+  id          String   @id @default(cuid())
+  userNeed    String   @unique // professionalism, reliability, creativity, organization, status, gift
+  headline    String
+  pitch       String
+  emotionalHook String
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+// ============================================
+// CLOSING STRATEGIES
+// ============================================
+
+model ClosingStrategy {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  type        String   // assumptive, soft, urgency, choice, summary
+  script      String
+  useWhen     String   // When to use this close
+  enabled     Boolean  @default(true)
+  successRate Float    @default(0)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+// ============================================
+// OBJECTION HANDLERS
+// ============================================
+
+model ObjectionHandler {
+  id          String   @id @default(cuid())
+  objection   String   // The objection (e.g., "too expensive", "don't need it")
+  category    String   // price, need, timing, trust, competition
+  response    String   // How to handle it
+  technique   String   // Name of technique (e.g., "feel-felt-found", "reframe")
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+// ============================================
+// AI SYSTEM PROMPT - Configurable AI instructions
+// ============================================
+
+model AIPromptConfig {
+  id              String   @id @default(cuid())
+  name            String   @unique @default("default")
+  systemPrompt    String   // Main AI instructions
+  discoveryPrompt String   // Instructions for discovery phase
+  positioningPrompt String // Instructions for positioning phase
+  closingPrompt   String   // Instructions for closing phase
+  enabled         Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// GLOBAL ANALYTICS - Aggregate learning data
+// ============================================
+
+model GlobalAnalytics {
+  id                      String   @id @default(cuid())
+  date                    DateTime @default(now()) @unique
+  totalSessions           Int      @default(0)
+  successfulSales         Int      @default(0)
+  failedSales             Int      @default(0)
+  abandonedSessions       Int      @default(0)
+  avgSessionDuration      Float    @default(0)
+  avgMessagesToClose      Float    @default(0)
+  conversionRate          Float    @default(0)
+  topPerformingTechnique  String?
+  mostCommonObjection     String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
+// ============================================
+// LEARNING INSIGHTS - AI-generated insights
+// ============================================
+
+model LearningInsight {
+  id          String   @id @default(cuid())
+  type        String   // technique_effectiveness, objection_pattern, conversion_insight
+  insight     String
+  confidence  Float    @default(0)
+  basedOn     Int      @default(0) // Number of sessions this is based on
+  createdAt   DateTime @default(now())
+}
+
+// ============================================
+// WEBHOOKS - External integrations
+// ============================================
+
+model Webhook {
+  id          String   @id @default(cuid())
+  name        String
+  url         String
+  events      String   // Comma-separated events
+  secret      String?  // HMAC secret for signing
+  enabled     Boolean  @default(true)
+  lastTriggered DateTime?
+  failCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============================================
+// SMS SETTINGS - Telephony configuration
+// ============================================
+
+model SmsSettings {
+  id                String   @id @default(cuid())
+  provider          String   @default("twilio")
+  fromNumber        String?
+  accountSid        String?
+  authToken         String?
+  welcomeTemplate   String?
+  completeTemplate  String?
+  followupTemplate  String?
+  autoWelcome       Boolean  @default(false)
+  autoComplete      Boolean  @default(false)
+  autoFollowup      Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// ============================================
+// CALL TRANSFER SETTINGS
+// ============================================
+
+model CallTransferSettings {
+  id              String   @id @default(cuid())
+  mode            String   @default("blind") // blind, warm, queue
+  holdMusic       String   @default("default")
+  timeout         Int      @default(30)
+  fallbackAction  String   @default("voicemail")
+  triggerSale     Boolean  @default(false)
+  triggerEscalate Boolean  @default(true)
+  triggerComplex  Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model TransferDestination {
+  id        String   @id @default(cuid())
+  name      String
+  number    String
+  priority  Int      @default(1)
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================
+// DTMF MENU SETTINGS
+// ============================================
+
+model DtmfSettings {
+  id              String   @id @default(cuid())
+  welcomeMessage  String?
+  inputTimeout    Int      @default(5)
+  invalidMessage  String   @default("Invalid selection. Please try again.")
+  maxRetries      Int      @default(3)
+  menuItems       String   @default("{}") // JSON object of key -> action mappings
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// AI TOOLS - Custom tool definitions
+// ============================================
+
+model AiToolSettings {
+  id        String   @id @default(cuid())
+  settings  String   @default("{}") // JSON for built-in tool settings
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CustomTool {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // api, webhook, function, database
+  description String?
+  endpoint    String?
+  schema      String   @default("{}") // JSON schema for parameters
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============================================
+// AI AGENTS - Specialized AI personas
+// ============================================
+
+model AiAgent {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  persona     String   // System prompt for this agent
+  temperature Float    @default(0.7)
+  tools       String   @default("[]") // JSON array of tool names
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============================================
+// LOGIC RULES - Conditional flow rules
+// ============================================
+
+model LogicRule {
+  id          String   @id @default(cuid())
+  name        String
+  priority    Int      @default(10)
+  trigger     String   // message_received, session_start, etc.
+  condition   String   // JavaScript expression
+  action      String   // Action to take
+  params      String   @default("{}") // JSON parameters for action
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============================================
+// CUSTOM FUNCTIONS - User-defined functions
+// ============================================
+
+model CustomFunction {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  params      String   @default("[]") // JSON array of parameter names
+  body        String   // JavaScript function body
+  enabled     Boolean  @default(true)
+  lastRun     DateTime?
+  runCount    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============================================
+// PAYMENT GATEWAYS - Multi-provider payment processing
+// ============================================
+
+model PaymentGateway {
+  id              String   @id @default(cuid())
+  provider        String   @unique // stripe, braintree, square, authorize
+  name            String   // Display name
+  description     String?
+  isEnabled       Boolean  @default(false)
+  publishableKey  String?  // Public/Publishable key
+  secretKey       String?  // Secret/Private key (encrypted)
+  merchantId      String?  // For Braintree/Square
+  webhookSecret   String?
+  testMode        Boolean  @default(true)
+  achEnabled      Boolean  @default(false) // For Stripe ACH
+  additionalConfig String  @default("{}") // JSON for provider-specific settings
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// PAYMENT SETTINGS - General payment configuration
+// ============================================
+
+model PaymentSettings {
+  id              String   @id @default(cuid())
+  provider        String   @default("stripe")
+  apiKey          String?
+  secretKey       String?
+  webhookSecret   String?
+  environment     String   @default("test")
+  currency        String   @default("USD")
+  taxRate         Float    @default(0)
+  descriptor      String?
+  collectBilling  Boolean  @default(false)
+  allowCoupons    Boolean  @default(true)
+  sendReceipts    Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Transaction {
+  id            String   @id @default(cuid())
+  externalId    String?  // Stripe/PayPal transaction ID
+  sessionId     String?
+  customerEmail String?
+  amount        Int      // In cents
+  currency      String   @default("USD")
+  status        String   @default("pending") // pending, succeeded, failed, refunded
+  metadata      String   @default("{}") // JSON
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================
+// KNOWLEDGE BASE - AI training documents
+// ============================================
+
+model KnowledgeDocument {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  type        String   @default("text") // text, url, file
+  sourceUrl   String?
+  languageId  String?
+  language    Language? @relation(fields: [languageId], references: [id])
+  tags        String   @default("[]") // JSON array of tags
+  enabled     Boolean  @default(true)
+  charCount   Int      @default(0)
+  lastSynced  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============================================
+// BRANDING - Visual customization
+// ============================================
+
+model Branding {
+  id              String   @id @default(cuid())
+  logoUrl         String   @default("")
+  faviconUrl      String   @default("")
+  primaryColor    String   @default("#4f46e5")
+  secondaryColor  String   @default("#3730a3")
+  accentColor     String   @default("#6366f1")
+  headingFont     String   @default("Inter")
+  bodyFont        String   @default("Inter")
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// STORE INFO - Business information
+// ============================================
+
+model StoreInfo {
+  id              String   @id @default(cuid())
+  businessName    String   @default("Sell Me a Pen Extended")
+  tagline         String   @default("Master the Art of Sales")
+  description     String   @default("AI-powered sales training platform")
+  address         String   @default("")
+  phone           String   @default("")
+  email           String   @default("")
+  website         String   @default("")
+  businessHours   String   @default("")
+  timezone        String   @default("America/New_York")
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// FEATURES - App feature toggles
+// ============================================
+
+model Features {
+  id                    String   @id @default(cuid())
+  faqEnabled            Boolean  @default(false)
+  stickyBarEnabled      Boolean  @default(false)
+  stickyBarText         String   @default("")
+  stickyBarBgColor      String   @default("#4f46e5")
+  stickyBarLinkUrl      String   @default("")
+  stickyBarLinkText     String   @default("")
+  liveChatEnabled       Boolean  @default(false)
+  liveChatProvider      String   @default("built-in")
+  liveChatWidgetId      String   @default("")
+  liveChatWelcome       String   @default("Hi! How can we help you today?")
+  liveChatAgentName     String   @default("Support")
+  liveChatColor         String   @default("#4f46e5")
+  liveChatPosition      String   @default("bottom-right")
+  emailNotifications    Boolean  @default(true)
+  smsNotifications      Boolean  @default(false)
+  pushNotifications     Boolean  @default(false)
+  socialFacebookEnabled Boolean  @default(false)
+  socialFacebook        String   @default("")
+  socialTwitterEnabled  Boolean  @default(false)
+  socialTwitter         String   @default("")
+  socialInstagramEnabled Boolean @default(false)
+  socialInstagram       String   @default("")
+  socialLinkedInEnabled Boolean  @default(false)
+  socialLinkedIn        String   @default("")
+  socialYouTubeEnabled  Boolean  @default(false)
+  socialYouTube         String   @default("")
+  socialTikTokEnabled   Boolean  @default(false)
+  socialTikTok          String   @default("")
+  updatedAt             DateTime @updatedAt
+}

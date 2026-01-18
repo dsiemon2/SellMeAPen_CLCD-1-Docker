@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Objection Handlers - Sell Me a Pen Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    .sidebar { min-height: 100vh; background: #2c3e50; }
+    .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1rem; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+    .sidebar .nav-link i { margin-right: 0.5rem; }
+    .main-content { background: #f8f9fa; min-height: 100vh; }
+    .nav-divider { border-top: 1px solid rgba(255,255,255,0.2); margin: 0.5rem 0; }
+    .nav-section { color: rgba(255,255,255,0.5); font-size: 0.75rem; padding: 0.5rem 1rem; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <%- include('_sidebar', { active: 'objections' }) %>
+
+      <main class="col-md-10 ms-sm-auto main-content p-4">
+        <h2 class="mb-4"><i class="bi bi-shield-exclamation text-primary me-2"></i>Objection Handlers</h2>
+
+        <p class="text-muted mb-4">When customers object, the AI uses these responses. Good objection handling turns "no" into "tell me more."</p>
+
+        <% const categories = ['price', 'need', 'timing', 'trust', 'competition']; %>
+        <% categories.forEach(category => { %>
+          <% const catHandlers = handlers.filter(h => h.category === category); %>
+          <% if (catHandlers.length > 0) { %>
+          <div class="card mb-4">
+            <div class="card-header bg-<%= category === 'price' ? 'danger' : category === 'need' ? 'warning' : category === 'timing' ? 'info' : 'secondary' %> text-<%= category === 'warning' ? 'dark' : 'white' %>">
+              <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i><%= category.charAt(0).toUpperCase() + category.slice(1) %> Objections</h5>
+            </div>
+            <div class="card-body">
+              <% catHandlers.forEach(handler => { %>
+              <div class="border-bottom pb-3 mb-3">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <h6 class="text-danger">"<%= handler.objection %>"</h6>
+                    <p class="mb-2"><strong>Response:</strong></p>
+                    <p class="text-muted"><%= handler.response %></p>
+                    <span class="badge bg-secondary">Technique: <%= handler.technique %></span>
+                  </div>
+                </div>
+              </div>
+              <% }) %>
+            </div>
+          </div>
+          <% } %>
+        <% }) %>
+
+        <div class="card">
+          <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-book me-2"></i>Objection Handling Techniques</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-4">
+                <h6>Feel-Felt-Found</h6>
+                <p class="small text-muted">"I understand how you feel. Others felt the same. What they found was..."</p>
+              </div>
+              <div class="col-md-4">
+                <h6>Reframe</h6>
+                <p class="small text-muted">Change the perspective. "That's actually why..." or "That's the best part..."</p>
+              </div>
+              <div class="col-md-4">
+                <h6>Isolate</h6>
+                <p class="small text-muted">"If we could solve that, would you be ready to move forward?"</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Initialize tooltips
+    document.addEventListener('DOMContentLoaded', () => {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+      tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+    });
+  </script>
+</body>
+</html>

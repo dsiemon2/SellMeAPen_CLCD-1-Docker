@@ -1,0 +1,332 @@
+<%- include('../layouts/public', { body: `
+
+<!-- Hero Section -->
+<section class="hero-section">
+  <div class="container">
+    <div class="row align-items-center">
+      <div class="col-lg-6">
+        <span class="wolf-badge mb-3">Made Famous by The Wolf of Wall Street</span>
+        <h1 class="hero-title mb-4">
+          Master the
+          <span class="text-gold">"Sell Me a Pen"</span>
+          Challenge
+        </h1>
+        <p class="hero-subtitle mb-4">
+          The legendary sales test that separates average salespeople from the great ones.
+          Practice with our AI-powered voice trainer whether you're the buyer OR the seller.
+        </p>
+        <div class="d-flex gap-3 mb-5">
+          <a href="/auth/login" class="btn btn-primary btn-lg px-4">
+            <i class="bi bi-mic me-2"></i>Start Training
+          </a>
+          <a href="#modes" class="btn btn-outline-light btn-lg px-4">
+            View Modes
+          </a>
+        </div>
+        <div class="d-flex align-items-center gap-4">
+          <div class="d-flex align-items-center">
+            <i class="bi bi-check-circle-fill text-success me-2"></i>
+            <span class="opacity-75">Two training modes</span>
+          </div>
+          <div class="d-flex align-items-center">
+            <i class="bi bi-check-circle-fill text-success me-2"></i>
+            <span class="opacity-75">3 difficulty levels</span>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-6 d-none d-lg-block">
+        <div class="bg-white rounded-4 p-4 shadow-lg" style="transform: perspective(1000px) rotateY(-5deg);">
+          <div class="d-flex align-items-center gap-2 mb-3 pb-3 border-bottom">
+            <div class="rounded-circle bg-dark text-white d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+              <i class="bi bi-person-fill"></i>
+            </div>
+            <div>
+              <strong style="color: #212529;">AI Sales Partner</strong>
+              <div class="text-muted small">Voice-Enabled Training</div>
+            </div>
+          </div>
+          <div class="mb-3">
+            <div class="bg-light rounded-3 p-3 mb-2" style="max-width: 80%; color: #212529;">
+              "Sell me this pen."
+            </div>
+            <div class="rounded-3 p-3 ms-auto" style="max-width: 80%; color: #000; background: #D4AF37;">
+              Before I do, when did you last write something by hand?
+            </div>
+            <div class="bg-light rounded-3 p-3 mb-2" style="max-width: 80%; color: #212529;">
+              "Hmm... I sign contracts daily, actually."
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Wolf of Wall Street Quote Section -->
+<section class="py-5 bg-white">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="wolf-quote">
+          <p class="h5 mb-3">
+            "The name of the game: moving the money from your client's pocket to your pocket."
+          </p>
+          <p class="mb-3 opacity-75">
+            The "Sell Me a Pen" challenge was made famous by Jordan Belfort in <strong>The Wolf of Wall Street</strong>.
+            It's not about the pen it's about understanding your customer's needs and creating urgency.
+            The best answer? <em>Ask them when they last used a pen, then offer to sell it back to them.</em>
+          </p>
+          <div class="d-flex align-items-center">
+            <i class="bi bi-film me-2 text-gold"></i>
+            <small class="opacity-75">The Wolf of Wall Street (2013)</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Training Modes Section -->
+<section class="py-5 bg-light" id="modes">
+  <div class="container">
+    <div class="text-center mb-5">
+      <span class="wolf-badge mb-3">Choose Your Challenge</span>
+      <h2 class="fw-bold">Two Ways to Train</h2>
+      <p class="text-muted">Practice from either side of the conversation</p>
+    </div>
+    <div class="row g-4 justify-content-center">
+      <!-- AI Sells to You -->
+      <div class="col-md-6 col-lg-5">
+        <div class="mode-card ai-mode">
+          <div class="d-flex align-items-center mb-4">
+            <div class="rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 60px; height: 60px; background: #dbeafe;">
+              <i class="bi bi-robot fs-3 text-primary"></i>
+            </div>
+            <div>
+              <h4 class="mb-0">AI Sells to You</h4>
+              <span class="text-muted small">You're the buyer</span>
+            </div>
+          </div>
+          <p class="text-muted mb-4">
+            Experience what it's like to be on the receiving end of a sales pitch.
+            The AI will try to sell you the pen using professional sales techniques.
+            Learn by observing, then resist or buy decide yourself!
+          </p>
+          <ul class="list-unstyled mb-4">
+            <li class="mb-2"><i class="bi bi-check2-circle text-success me-2"></i>Learn sales techniques by example</li>
+            <li class="mb-2"><i class="bi bi-check2-circle text-success me-2"></i>Practice being a tough customer</li>
+            <li class="mb-2"><i class="bi bi-check2-circle text-success me-2"></i>Understand buyer psychology</li>
+          </ul>
+          <a href="/auth/login?mode=ai_sells" class="btn btn-primary w-100">
+            <i class="bi bi-play-circle me-2"></i>Try This Mode
+          </a>
+        </div>
+      </div>
+
+      <!-- You Sell to AI -->
+      <div class="col-md-6 col-lg-5">
+        <div class="mode-card user-mode">
+          <div class="d-flex align-items-center mb-4">
+            <div class="rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 60px; height: 60px; background: rgba(212, 175, 55, 0.2);">
+              <i class="bi bi-person-badge fs-3" style="color: #D4AF37;"></i>
+            </div>
+            <div>
+              <h4 class="mb-0">You Sell to AI</h4>
+              <span class="text-muted small">You're the salesperson</span>
+            </div>
+          </div>
+          <p class="text-muted mb-4">
+            The classic challenge! YOU must sell the pen to a skeptical AI buyer.
+            Practice your discovery questions, handle objections, and close the deal.
+            Choose your difficulty level!
+          </p>
+          <div class="mb-4">
+            <p class="fw-medium mb-2">Difficulty Levels:</p>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+              <span class="difficulty-badge difficulty-easy">Easy - Receptive Buyer</span>
+              <span class="difficulty-badge difficulty-medium">Medium - Skeptical Buyer</span>
+              <span class="difficulty-badge difficulty-hard">Hard - Tough Negotiator</span>
+            </div>
+            <small class="text-muted">Higher difficulty = more objections, harder to close</small>
+          </div>
+          <a href="/auth/login?mode=user_sells" class="btn w-100" style="background: #D4AF37; border-color: #D4AF37; color: #000;">
+            <i class="bi bi-trophy me-2"></i>Take the Challenge
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- How It Works -->
+<section class="py-5" id="how-it-works">
+  <div class="container">
+    <div class="text-center mb-5">
+      <h2 class="fw-bold">How It Works</h2>
+      <p class="text-muted">Master the art of selling in three steps</p>
+    </div>
+    <div class="row g-4">
+      <div class="col-md-4">
+        <div class="text-center">
+          <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-4" style="width: 80px; height: 80px; font-size: 2rem; background: rgba(212, 175, 55, 0.1); color: #D4AF37;">
+            <i class="bi bi-1-circle-fill"></i>
+          </div>
+          <h4>Choose Your Mode</h4>
+          <p class="text-muted">Select whether you want to practice selling or experience being sold to. Pick your difficulty.</p>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="text-center">
+          <div class="bg-warning bg-opacity-10 text-warning rounded-circle d-inline-flex align-items-center justify-content-center mb-4" style="width: 80px; height: 80px; font-size: 2rem;">
+            <i class="bi bi-2-circle-fill"></i>
+          </div>
+          <h4>Start the Conversation</h4>
+          <p class="text-muted">Use voice or text to engage in a realistic sales conversation with our AI partner.</p>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="text-center">
+          <div class="bg-success bg-opacity-10 text-success rounded-circle d-inline-flex align-items-center justify-content-center mb-4" style="width: 80px; height: 80px; font-size: 2rem;">
+            <i class="bi bi-3-circle-fill"></i>
+          </div>
+          <h4>Learn & Improve</h4>
+          <p class="text-muted">Get feedback on your technique, track your progress, and watch your close rate improve.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="py-5 bg-light" id="features">
+  <div class="container">
+    <div class="text-center mb-5">
+      <h2 class="fw-bold">Why Train With Us</h2>
+      <p class="text-muted">Everything you need to become a sales closer</p>
+    </div>
+    <div class="row g-4">
+      <div class="col-md-6 col-lg-3">
+        <div class="card feature-card h-100">
+          <div class="feature-icon" style="background: rgba(212, 175, 55, 0.1); color: #D4AF37;">
+            <i class="bi bi-mic-fill"></i>
+          </div>
+          <h5>Voice Training</h5>
+          <p class="text-muted mb-0">Real voice conversations with AI. Practice your pitch, tone, and timing.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="card feature-card h-100">
+          <div class="feature-icon bg-success bg-opacity-10 text-success">
+            <i class="bi bi-sliders"></i>
+          </div>
+          <h5>Adjustable Difficulty</h5>
+          <p class="text-muted mb-0">Easy, Medium, or Hard the AI adapts to challenge you at your level.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="card feature-card h-100">
+          <div class="feature-icon bg-danger bg-opacity-10 text-danger">
+            <i class="bi bi-shield-x"></i>
+          </div>
+          <h5>Objection Handling</h5>
+          <p class="text-muted mb-0">Practice responding to "I don't need it", "Too expensive", and more.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="card feature-card h-100">
+          <div class="feature-icon bg-info bg-opacity-10 text-info">
+            <i class="bi bi-graph-up"></i>
+          </div>
+          <h5>Track Progress</h5>
+          <p class="text-muted mb-0">See which techniques work best. Analytics show your improvement over time.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- The Secret Section -->
+<section class="py-5">
+  <div class="container">
+    <div class="row align-items-center">
+      <div class="col-lg-6 mb-4 mb-lg-0">
+        <span class="wolf-badge mb-3">The Secret</span>
+        <h2 class="fw-bold mb-4">Don't Sell the Pen. Sell the Need.</h2>
+        <p class="text-muted mb-4">
+          Most salespeople fail the "Sell Me a Pen" test because they immediately start listing features.
+          The real lesson? <strong>Great salespeople ask questions first.</strong>
+        </p>
+        <ul class="list-unstyled">
+          <li class="mb-3 d-flex">
+            <i class="bi bi-x-circle text-danger me-3 fs-5"></i>
+            <div>
+              <strong>Wrong:</strong> "This pen has a tungsten tip and smooth ink flow..."
+            </div>
+          </li>
+          <li class="mb-3 d-flex">
+            <i class="bi bi-check-circle text-success me-3 fs-5"></i>
+            <div>
+              <strong>Right:</strong> "When was the last time you needed to write something important?"
+            </div>
+          </li>
+        </ul>
+      </div>
+      <div class="col-lg-6">
+        <div class="bg-light rounded-4 p-4">
+          <h5 class="mb-4"><i class="bi bi-book me-2 text-gold"></i>What You'll Master</h5>
+          <div class="row g-3">
+            <div class="col-6">
+              <div class="d-flex align-items-start">
+                <i class="bi bi-check2-circle text-success me-2 mt-1"></i>
+                <span>Discovery Questions</span>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="d-flex align-items-start">
+                <i class="bi bi-check2-circle text-success me-2 mt-1"></i>
+                <span>Value Propositions</span>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="d-flex align-items-start">
+                <i class="bi bi-check2-circle text-success me-2 mt-1"></i>
+                <span>Urgency Creation</span>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="d-flex align-items-start">
+                <i class="bi bi-check2-circle text-success me-2 mt-1"></i>
+                <span>Objection Handling</span>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="d-flex align-items-start">
+                <i class="bi bi-check2-circle text-success me-2 mt-1"></i>
+                <span>Closing Techniques</span>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="d-flex align-items-start">
+                <i class="bi bi-check2-circle text-success me-2 mt-1"></i>
+                <span>Building Rapport</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="py-5" style="background: linear-gradient(135deg, #0B1F3B 0%, #1a365d 100%);">
+  <div class="container text-center text-white">
+    <h2 class="fw-bold mb-3">Ready to Master the Challenge?</h2>
+    <p class="opacity-75 mb-4">Join thousands of sales professionals who've sharpened their skills with AI training.</p>
+    <a href="/auth/login" class="btn btn-lg px-5" style="background: #D4AF37; border-color: #D4AF37; color: #000;">
+      Start Training Now <i class="bi bi-arrow-right ms-2"></i>
+    </a>
+  </div>
+</section>
+
+` }) %>

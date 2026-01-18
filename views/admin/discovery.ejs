@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Discovery Questions - Sell Me a Pen Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    .sidebar { min-height: 100vh; background: #2c3e50; }
+    .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1rem; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+    .sidebar .nav-link i { margin-right: 0.5rem; }
+    .main-content { background: #f8f9fa; min-height: 100vh; }
+    .nav-divider { border-top: 1px solid rgba(255,255,255,0.2); margin: 0.5rem 0; }
+    .nav-section { color: rgba(255,255,255,0.5); font-size: 0.75rem; padding: 0.5rem 1rem; text-transform: uppercase; }
+    .bulk-actions { display: none; background: #e3f2fd; padding: 0.75rem 1rem; border-radius: 8px; }
+    .bulk-actions.show { display: flex; }
+    .row-checkbox { cursor: pointer; }
+    tr.selected { background-color: #e3f2fd !important; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <%- include('_sidebar', { active: 'discovery' }) %>
+
+      <main class="col-md-10 ms-sm-auto main-content p-4">
+        <h2 class="mb-4"><i class="bi bi-question-circle text-primary me-2"></i>Discovery Questions</h2>
+
+        <p class="text-muted mb-4">Discovery questions help the AI understand customer needs before pitching. The best salespeople never pitch first - they ask questions.</p>
+
+        <div class="card mb-4">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Add New Question</h5>
+          </div>
+          <div class="card-body">
+            <form id="addQuestionForm">
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Question</label>
+                  <input type="text" class="form-control" id="question" placeholder="When was the last time you needed...">
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Purpose (what it reveals)</label>
+                  <input type="text" class="form-control" id="purpose" placeholder="Identifies writing frequency">
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Follow-up Question (optional)</label>
+                  <input type="text" class="form-control" id="followUp" placeholder="Tell me more about that...">
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Target Need</label>
+                  <select class="form-select" id="targetNeed">
+                    <option value="professionalism">Professionalism</option>
+                    <option value="reliability">Reliability</option>
+                    <option value="creativity">Creativity</option>
+                    <option value="organization">Organization</option>
+                    <option value="status">Status</option>
+                    <option value="gift">Gift</option>
+                  </select>
+                </div>
+              </div>
+              <button type="submit" class="btn btn-primary" data-bs-toggle="tooltip" title="Add this question to the AI's discovery arsenal">
+                <i class="bi bi-plus"></i> Add Question
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Bulk Actions Toolbar -->
+        <div class="bulk-actions mb-3 align-items-center justify-content-between" id="bulkActions">
+          <div>
+            <span class="me-3"><strong id="selectedCount">0</strong> selected</span>
+            <button class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="Delete selected questions" onclick="bulkDelete()">
+              <i class="bi bi-trash"></i> Delete Selected
+            </button>
+          </div>
+          <button class="btn btn-sm btn-link" onclick="clearSelection()" data-bs-toggle="tooltip" title="Clear all selections">Clear Selection</button>
+        </div>
+
+        <div class="card">
+          <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-list-ol me-2"></i>Current Questions</h5>
+          </div>
+          <div class="card-body p-0">
+            <table class="table table-hover mb-0" id="questionsTable">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 40px;">
+                    <input type="checkbox" class="form-check-input" id="selectAll" data-bs-toggle="tooltip" title="Select all rows">
+                  </th>
+                  <th>Question</th>
+                  <th>Purpose</th>
+                  <th>Target Need</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody">
+                <% questions.forEach(q => { %>
+                <tr data-id="<%= q.id %>">
+                  <td>
+                    <input type="checkbox" class="form-check-input row-checkbox" value="<%= q.id %>">
+                  </td>
+                  <td><%= q.question %></td>
+                  <td><small class="text-muted"><%= q.purpose %></small></td>
+                  <td><span class="badge bg-info"><%= q.targetNeed %></span></td>
+                  <td>
+                    <button class="btn btn-sm btn-outline-danger"
+                            data-bs-toggle="tooltip"
+                            title="Delete this question"
+                            onclick="deleteQuestion('<%= q.id %>')">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+                <% }) %>
+                <% if (questions.length === 0) { %>
+                <tr id="emptyRow">
+                  <td colspan="5" class="text-center text-muted py-4">
+                    No questions yet. Add some above.
+                  </td>
+                </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <div class="text-muted small">
+              Showing <span id="showingStart">1</span>-<span id="showingEnd"><%= Math.min(10, questions.length) %></span> of <span id="totalRows"><%= questions.length %></span> questions
+            </div>
+            <nav>
+              <ul class="pagination pagination-sm mb-0" id="pagination">
+                <li class="page-item disabled" id="prevPage">
+                  <a class="page-link" href="#" onclick="changePage(-1); return false;">
+                    <i class="bi bi-chevron-left"></i>
+                  </a>
+                </li>
+                <li class="page-item disabled" id="nextPage">
+                  <a class="page-link" href="#" onclick="changePage(1); return false;">
+                    <i class="bi bi-chevron-right"></i>
+                  </a>
+                </li>
+              </ul>
+            </nav>
+            <div>
+              <select class="form-select form-select-sm" id="pageSize" style="width: auto;" data-bs-toggle="tooltip" title="Rows per page">
+                <option value="10">10 / page</option>
+                <option value="25">25 / page</option>
+                <option value="50">50 / page</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    let currentPage = 1;
+    let pageSize = 10;
+    let allRows = [];
+    let selectedRows = new Set();
+
+    // Initialize tooltips and pagination
+    document.addEventListener('DOMContentLoaded', () => {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+      tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+
+      allRows = Array.from(document.querySelectorAll('#tableBody tr:not(#emptyRow)'));
+      updatePagination();
+    });
+
+    // Select all checkbox
+    document.getElementById('selectAll').addEventListener('change', function() {
+      const checkboxes = document.querySelectorAll('.row-checkbox');
+      checkboxes.forEach(cb => {
+        cb.checked = this.checked;
+        const row = cb.closest('tr');
+        if (this.checked) {
+          selectedRows.add(cb.value);
+          row.classList.add('selected');
+        } else {
+          selectedRows.delete(cb.value);
+          row.classList.remove('selected');
+        }
+      });
+      updateBulkActions();
+    });
+
+    // Individual row checkboxes
+    document.querySelectorAll('.row-checkbox').forEach(cb => {
+      cb.addEventListener('change', function() {
+        const row = this.closest('tr');
+        if (this.checked) {
+          selectedRows.add(this.value);
+          row.classList.add('selected');
+        } else {
+          selectedRows.delete(this.value);
+          row.classList.remove('selected');
+        }
+        updateBulkActions();
+      });
+    });
+
+    function updateBulkActions() {
+      const bulkActions = document.getElementById('bulkActions');
+      const selectedCount = document.getElementById('selectedCount');
+      selectedCount.textContent = selectedRows.size;
+      bulkActions.classList.toggle('show', selectedRows.size > 0);
+    }
+
+    function clearSelection() {
+      selectedRows.clear();
+      document.querySelectorAll('.row-checkbox').forEach(cb => {
+        cb.checked = false;
+        cb.closest('tr').classList.remove('selected');
+      });
+      document.getElementById('selectAll').checked = false;
+      updateBulkActions();
+    }
+
+    function updatePagination() {
+      const totalPages = Math.ceil(allRows.length / pageSize);
+      const start = (currentPage - 1) * pageSize;
+      const end = Math.min(start + pageSize, allRows.length);
+
+      allRows.forEach((row, idx) => {
+        row.style.display = (idx >= start && idx < end) ? '' : 'none';
+      });
+
+      document.getElementById('showingStart').textContent = allRows.length > 0 ? start + 1 : 0;
+      document.getElementById('showingEnd').textContent = end;
+      document.getElementById('totalRows').textContent = allRows.length;
+
+      document.getElementById('prevPage').classList.toggle('disabled', currentPage === 1);
+      document.getElementById('nextPage').classList.toggle('disabled', currentPage >= totalPages);
+
+      const pagination = document.getElementById('pagination');
+      const pageItems = pagination.querySelectorAll('.page-number');
+      pageItems.forEach(item => item.remove());
+
+      const nextPageLi = document.getElementById('nextPage');
+      for (let i = 1; i <= totalPages; i++) {
+        const li = document.createElement('li');
+        li.className = `page-item page-number ${i === currentPage ? 'active' : ''}`;
+        li.innerHTML = `<a class="page-link" href="#" onclick="goToPage(${i}); return false;">${i}</a>`;
+        pagination.insertBefore(li, nextPageLi);
+      }
+    }
+
+    function changePage(delta) {
+      const totalPages = Math.ceil(allRows.length / pageSize);
+      const newPage = currentPage + delta;
+      if (newPage >= 1 && newPage <= totalPages) {
+        currentPage = newPage;
+        updatePagination();
+      }
+    }
+
+    function goToPage(page) {
+      currentPage = page;
+      updatePagination();
+    }
+
+    document.getElementById('pageSize').addEventListener('change', function() {
+      pageSize = parseInt(this.value);
+      currentPage = 1;
+      updatePagination();
+    });
+
+    document.getElementById('addQuestionForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const res = await fetch(`/admin/discovery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: document.getElementById('question').value,
+            purpose: document.getElementById('purpose').value,
+            followUp: document.getElementById('followUp').value,
+            targetNeed: document.getElementById('targetNeed').value
+          })
+        });
+        if (res.ok) location.reload();
+      } catch (err) {
+        alert('Error adding question');
+      }
+    });
+
+    async function deleteQuestion(id) {
+      if (!confirm('Delete this question?')) return;
+      try {
+        await fetch(`/admin/discovery/${id}`, { method: 'DELETE' });
+        location.reload();
+      } catch (err) {
+        alert('Error deleting');
+      }
+    }
+
+    async function bulkDelete() {
+      if (!confirm(`Delete ${selectedRows.size} selected questions?`)) return;
+      try {
+        for (const id of selectedRows) {
+          await fetch(`/admin/discovery/${id}`, { method: 'DELETE' });
+        }
+        location.reload();
+      } catch (err) {
+        alert('Error deleting questions');
+      }
+    }
+  </script>
+</body>
+</html>

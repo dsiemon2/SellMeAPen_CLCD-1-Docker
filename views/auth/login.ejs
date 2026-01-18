@@ -1,0 +1,112 @@
+<%- include('../layouts/auth', {
+  title: 'Login',
+  subtitle: 'Sign in to start training',
+  body: `
+
+<div id="alertContainer">
+  ${typeof error !== 'undefined' && error ? '<div class="alert alert-danger d-flex align-items-center"><i class="bi bi-exclamation-circle me-2"></i>' + error + '</div>' : ''}
+  ${typeof success !== 'undefined' && success ? '<div class="alert alert-success d-flex align-items-center"><i class="bi bi-check-circle me-2"></i>' + success + '</div>' : ''}
+</div>
+
+<!-- Demo Logins -->
+<div class="demo-logins">
+  <h6 class="mb-2"><i class="bi bi-key me-1"></i>Demo Accounts</h6>
+  <div class="d-flex flex-wrap gap-1">
+    <button type="button" class="btn btn-outline-secondary demo-login-btn" id="demoUserBtn" data-bs-toggle="tooltip" title="Regular user account">
+      <i class="bi bi-person"></i> Demo User
+    </button>
+    <button type="button" class="btn btn-outline-primary demo-login-btn" id="demoAdminBtn" data-bs-toggle="tooltip" title="Admin account (has admin access)">
+      <i class="bi bi-shield-lock"></i> Demo Admin
+    </button>
+  </div>
+</div>
+
+<form method="POST" action="/auth/login" id="loginForm">
+  <input type="hidden" name="redirect" value="${typeof redirect !== 'undefined' ? redirect : '/chat'}">
+
+  <div class="mb-3">
+    <label class="form-label fw-medium">Email</label>
+    <div class="input-group">
+      <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+      <input type="email" class="form-control" name="email" id="email" value="${typeof email !== 'undefined' && email ? email : ''}" required autofocus placeholder="Enter your email">
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label fw-medium d-flex justify-content-between">
+      <span>Password</span>
+    </label>
+    <div class="input-group position-relative">
+      <span class="input-group-text"><i class="bi bi-lock"></i></span>
+      <input type="password" class="form-control" name="password" id="password" required placeholder="Enter your password">
+      <span class="password-toggle" id="passwordToggle">
+        <i class="bi bi-eye" id="passwordToggleIcon"></i>
+      </span>
+    </div>
+  </div>
+
+  <div class="mb-4">
+    <div class="form-check">
+      <input type="checkbox" class="form-check-input" name="remember" id="remember">
+      <label class="form-check-label" for="remember">Remember me</label>
+    </div>
+  </div>
+
+  <button type="submit" class="btn btn-primary w-100" id="submitBtn">
+    <span id="submitText"><i class="bi bi-box-arrow-in-right me-2"></i>Sign In</span>
+    <span id="submitSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+  </button>
+</form>
+
+<p class="text-center mt-4 mb-0 text-muted small">
+  <a href="/admin/login" class="text-decoration-none">
+    <i class="bi bi-gear me-1"></i>Admin Login
+  </a>
+</p>
+
+`,
+  scripts: `
+<script>
+  (function() {
+    function fillLogin(email, password) {
+      document.getElementById('email').value = email;
+      document.getElementById('password').value = password;
+      showAlert('Credentials filled! Click Sign In to continue.', 'info');
+    }
+
+    function togglePassword() {
+      var field = document.getElementById('password');
+      var icon = document.getElementById('passwordToggleIcon');
+      if (field.type === 'password') {
+        field.type = 'text';
+        icon.classList.replace('bi-eye', 'bi-eye-slash');
+      } else {
+        field.type = 'password';
+        icon.classList.replace('bi-eye-slash', 'bi-eye');
+      }
+    }
+
+    function showAlert(message, type) {
+      type = type || 'danger';
+      var container = document.getElementById('alertContainer');
+      container.innerHTML = '<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
+        message +
+        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
+        '</div>';
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('demoUserBtn').addEventListener('click', function() {
+        fillLogin('user@demo.com', 'demo123');
+      });
+      document.getElementById('demoAdminBtn').addEventListener('click', function() {
+        fillLogin('admin@demo.com', 'admin123');
+      });
+      document.getElementById('passwordToggle').addEventListener('click', function() {
+        togglePassword();
+      });
+    });
+  })();
+</script>
+`
+}) %>

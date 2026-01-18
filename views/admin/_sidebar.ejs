@@ -1,0 +1,42 @@
+<nav class="col-md-2 d-none d-md-block sidebar p-0" style="background: <%= branding?.primaryColor || '#4f46e5' %>;">
+  <div class="p-3 text-white">
+    <h5><i class="bi bi-pen-fill"></i> Sell Me a Pen Ext</h5>
+    <small>Sales Training Admin</small>
+  </div>
+  <ul class="nav flex-column">
+    <li class="nav-item"><a class="nav-link <%= active === 'dashboard' ? 'active' : '' %>" href="<%= basePath %>/admin"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'sessions' ? 'active' : '' %>" href="<%= basePath %>/admin/sessions"><i class="bi bi-chat-left-text"></i> Sessions</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'analytics' ? 'active' : '' %>" href="<%= basePath %>/admin/analytics"><i class="bi bi-graph-up"></i> Analytics</a></li>
+    <div class="nav-divider"></div>
+    <div class="nav-section">Sales Configuration</div>
+    <li class="nav-item"><a class="nav-link <%= active === 'greeting' ? 'active' : '' %>" href="<%= basePath %>/admin/greeting"><i class="bi bi-chat-quote"></i> Greeting</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'product' ? 'active' : '' %>" href="<%= basePath %>/admin/product"><i class="bi bi-box-seam"></i> Pen Product</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'techniques' ? 'active' : '' %>" href="<%= basePath %>/admin/techniques"><i class="bi bi-lightbulb"></i> Techniques</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'discovery' ? 'active' : '' %>" href="<%= basePath %>/admin/discovery"><i class="bi bi-question-circle"></i> Discovery Q's</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'closing' ? 'active' : '' %>" href="<%= basePath %>/admin/closing"><i class="bi bi-check-circle"></i> Closing</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'objections' ? 'active' : '' %>" href="<%= basePath %>/admin/objections"><i class="bi bi-shield-exclamation"></i> Objections</a></li>
+    <div class="nav-divider"></div>
+    <div class="nav-section">AI Settings</div>
+    <li class="nav-item"><a class="nav-link <%= active === 'ai-providers' ? 'active' : '' %>" href="<%= basePath %>/admin/ai-providers"><i class="bi bi-cpu"></i> AI Providers</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'voices' ? 'active' : '' %>" href="<%= basePath %>/admin/voices"><i class="bi bi-volume-up"></i> Voices & Mode</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'knowledge-base' ? 'active' : '' %>" href="<%= basePath %>/admin/knowledge-base"><i class="bi bi-book"></i> Knowledge Base</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'ai-config' ? 'active' : '' %>" href="<%= basePath %>/admin/ai-config"><i class="bi bi-robot"></i> AI Config</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'ai-tools' ? 'active' : '' %>" href="<%= basePath %>/admin/ai-tools"><i class="bi bi-tools"></i> AI Tools</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'ai-agents' ? 'active' : '' %>" href="<%= basePath %>/admin/ai-agents"><i class="bi bi-people"></i> AI Agents</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'logic-rules' ? 'active' : '' %>" href="<%= basePath %>/admin/logic-rules"><i class="bi bi-diagram-3"></i> Logic Rules</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'functions' ? 'active' : '' %>" href="<%= basePath %>/admin/functions"><i class="bi bi-code-square"></i> Functions</a></li>
+    <div class="nav-divider"></div>
+    <div class="nav-section">Telephony</div>
+    <li class="nav-item"><a class="nav-link <%= active === 'sms-settings' ? 'active' : '' %>" href="<%= basePath %>/admin/sms-settings"><i class="bi bi-chat-dots"></i> SMS Settings</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'call-transfer' ? 'active' : '' %>" href="<%= basePath %>/admin/call-transfer"><i class="bi bi-telephone-forward"></i> Call Transfer</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'dtmf-menu' ? 'active' : '' %>" href="<%= basePath %>/admin/dtmf-menu"><i class="bi bi-grid-3x3"></i> DTMF Menu</a></li>
+    <div class="nav-divider"></div>
+    <div class="nav-section">Integrations</div>
+    <li class="nav-item"><a class="nav-link <%= active === 'webhooks' ? 'active' : '' %>" href="<%= basePath %>/admin/webhooks"><i class="bi bi-link-45deg"></i> WebHooks</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'payments' ? 'active' : '' %>" href="<%= basePath %>/admin/payments"><i class="bi bi-credit-card"></i> Payments</a></li>
+    <div class="nav-divider"></div>
+    <div class="nav-section">System</div>
+    <li class="nav-item"><a class="nav-link <%= active === 'settings' ? 'active' : '' %>" href="<%= basePath %>/admin/settings"><i class="bi bi-gear"></i> Settings</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'features' ? 'active' : '' %>" href="<%= basePath %>/admin/features"><i class="bi bi-toggles"></i> Features</a></li>
+  </ul>
+</nav>

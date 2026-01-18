@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Closing Strategies - Sell Me a Pen Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    .sidebar { min-height: 100vh; background: #2c3e50; }
+    .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1rem; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+    .sidebar .nav-link i { margin-right: 0.5rem; }
+    .main-content { background: #f8f9fa; min-height: 100vh; }
+    .nav-divider { border-top: 1px solid rgba(255,255,255,0.2); margin: 0.5rem 0; }
+    .nav-section { color: rgba(255,255,255,0.5); font-size: 0.75rem; padding: 0.5rem 1rem; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <%- include('_sidebar', { active: 'closing' }) %>
+
+      <main class="col-md-10 ms-sm-auto main-content p-4">
+        <h2 class="mb-4"><i class="bi bi-check-circle text-primary me-2"></i>Closing Strategies</h2>
+
+        <p class="text-muted mb-4">These are the strategies the AI uses to close the sale. Different closes work in different situations.</p>
+
+        <div class="row">
+          <% strategies.forEach(strategy => { %>
+          <div class="col-md-6 mb-4">
+            <div class="card h-100">
+              <div class="card-header bg-<%= strategy.type === 'assumptive' ? 'success' : strategy.type === 'soft' ? 'info' : strategy.type === 'urgency' ? 'warning' : 'primary' %> text-<%= strategy.type === 'urgency' ? 'dark' : 'white' %>">
+                <h6 class="mb-0"><%= strategy.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) %></h6>
+              </div>
+              <div class="card-body">
+                <p class="mb-2"><strong>Type:</strong> <span class="badge bg-secondary"><%= strategy.type %></span></p>
+                <p class="mb-2"><strong>Script:</strong></p>
+                <blockquote class="blockquote-footer bg-light p-2 rounded"><%= strategy.script %></blockquote>
+                <p class="mb-0"><strong>Use when:</strong> <%= strategy.useWhen %></p>
+              </div>
+            </div>
+          </div>
+          <% }) %>
+        </div>
+
+        <div class="card mt-4">
+          <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Closing Types Explained</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-4">
+                <h6><span class="badge bg-success">Assumptive</span></h6>
+                <p class="small text-muted">Assumes the sale and moves to details. "Would you prefer black or silver?"</p>
+              </div>
+              <div class="col-md-4">
+                <h6><span class="badge bg-info">Soft</span></h6>
+                <p class="small text-muted">Low pressure, gauges interest. "How does that sound to you?"</p>
+              </div>
+              <div class="col-md-4">
+                <h6><span class="badge bg-warning text-dark">Urgency</span></h6>
+                <p class="small text-muted">Creates time pressure. "Only a few left at this price."</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Initialize tooltips
+    document.addEventListener('DOMContentLoaded', () => {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+      tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+    });
+  </script>
+</body>
+</html>

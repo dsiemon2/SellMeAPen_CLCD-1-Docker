@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Progress - AI Sales Training</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: white;
+    }
+    .stat-card {
+      background: rgba(255,255,255,0.1);
+      border-radius: 12px;
+      padding: 1.5rem;
+      text-align: center;
+      transition: transform 0.2s;
+    }
+    .stat-card:hover {
+      transform: translateY(-3px);
+    }
+    .stat-value {
+      font-size: 2.5rem;
+      font-weight: bold;
+    }
+    .stat-label {
+      color: rgba(255,255,255,0.7);
+      font-size: 0.9rem;
+    }
+    .chart-container {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+    .session-item {
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .outcome-badge {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+    }
+    .streak-badge {
+      background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+      color: #000;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .mode-badge {
+      font-size: 0.85rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar navbar-dark bg-transparent">
+    <div class="container">
+      <a class="navbar-brand" href="/">
+        <i class="bi bi-pen-fill" style="color: #D4AF37;"></i> Sell Me a Pen
+      </a>
+      <div class="d-flex align-items-center gap-3">
+        <span class="mode-badge <%= currentMode === 'user_sells' ? 'bg-success' : 'bg-primary' %>">
+          <%= currentMode === 'user_sells' ? 'You Sell Mode' : 'AI Sells Mode' %>
+        </span>
+        <a href="<%= basePath %>/chat" class="btn btn-outline-primary btn-sm">
+          <i class="bi bi-chat"></i> Practice
+        </a>
+        <% if (user && user.role === 'admin') { %>
+          <a href="/admin" class="btn btn-outline-warning btn-sm">
+            <i class="bi bi-gear"></i> Admin
+          </a>
+        <% } %>
+        <span class="text-light">
+          <i class="bi bi-person-circle me-1"></i><%= user ? user.name : 'Guest' %>
+        </span>
+        <a href="/auth/logout" class="btn btn-outline-light btn-sm">
+          <i class="bi bi-box-arrow-right"></i>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2><i class="bi bi-graph-up me-2"></i>My Progress</h2>
+      <% if (stats.bestStreak > 0) { %>
+        <div class="streak-badge">
+          <i class="bi bi-fire"></i>
+          Best Streak: <%= stats.bestStreak %> sales
+        </div>
+      <% } %>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="row g-4 mb-4">
+      <div class="col-md-3 col-6">
+        <div class="stat-card">
+          <div class="stat-value text-primary"><%= stats.totalSessions %></div>
+          <div class="stat-label">Total Sessions</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="stat-card">
+          <div class="stat-value text-success"><%= stats.salesMade %></div>
+          <div class="stat-label">Sales Made</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="stat-card">
+          <div class="stat-value text-info"><%= stats.conversionRate %>%</div>
+          <div class="stat-label">Conversion Rate</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div class="stat-card">
+          <div class="stat-value text-warning"><%= stats.avgMessages %></div>
+          <div class="stat-label">Avg Messages/Session</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-4">
+      <!-- Chart Section -->
+      <div class="col-lg-8">
+        <div class="chart-container">
+          <h5 class="mb-3"><i class="bi bi-bar-chart me-2"></i>Performance Trend</h5>
+          <canvas id="trendChart" height="200"></canvas>
+        </div>
+      </div>
+
+      <!-- Recent Sessions -->
+      <div class="col-lg-4">
+        <div class="chart-container">
+          <h5 class="mb-3"><i class="bi bi-clock-history me-2"></i>Recent Sessions</h5>
+          <div id="recentSessions">
+            <% if (recentSessions.length === 0) { %>
+              <p class="text-muted text-center">No sessions yet. Start practicing!</p>
+            <% } else { %>
+              <% recentSessions.slice(0, 8).forEach(session => { %>
+                <div class="session-item">
+                  <div>
+                    <small class="text-muted">
+                      <%= new Date(session.date).toLocaleDateString() %>
+                    </small>
+                    <div class="small">
+                      <%= session.messageCount %> messages
+                    </div>
+                  </div>
+                  <span class="outcome-badge <%= session.outcome === 'sale_made' ? 'bg-success' : session.outcome === 'no_sale' ? 'bg-danger' : 'bg-secondary' %>">
+                    <%= session.outcome === 'sale_made' ? 'Sale!' : session.outcome === 'no_sale' ? 'No Sale' : session.outcome === 'abandoned' ? 'Left' : 'In Progress' %>
+                  </span>
+                </div>
+              <% }) %>
+            <% } %>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Tips -->
+    <div class="chart-container mt-4">
+      <h5 class="mb-3"><i class="bi bi-lightbulb me-2"></i>Quick Tips for <%= currentMode === 'user_sells' ? 'Selling' : 'Being a Good Customer' %></h5>
+      <% if (currentMode === 'user_sells') { %>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <div class="d-flex align-items-start gap-2">
+              <i class="bi bi-1-circle-fill text-primary"></i>
+              <div>
+                <strong>Ask Questions First</strong>
+                <p class="small text-muted mb-0">Understand needs before pitching</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="d-flex align-items-start gap-2">
+              <i class="bi bi-2-circle-fill text-success"></i>
+              <div>
+                <strong>Focus on Benefits</strong>
+                <p class="small text-muted mb-0">Not just features - what's in it for them?</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="d-flex align-items-start gap-2">
+              <i class="bi bi-3-circle-fill text-warning"></i>
+              <div>
+                <strong>Ask for the Sale</strong>
+                <p class="small text-muted mb-0">Don't forget to close!</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% } else { %>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <div class="d-flex align-items-start gap-2">
+              <i class="bi bi-1-circle-fill text-primary"></i>
+              <div>
+                <strong>Be Skeptical</strong>
+                <p class="small text-muted mb-0">Don't agree too easily - make them earn it</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="d-flex align-items-start gap-2">
+              <i class="bi bi-2-circle-fill text-success"></i>
+              <div>
+                <strong>Ask Questions</strong>
+                <p class="small text-muted mb-0">Challenge their claims and pricing</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="d-flex align-items-start gap-2">
+              <i class="bi bi-3-circle-fill text-warning"></i>
+              <div>
+                <strong>Reward Good Pitches</strong>
+                <p class="small text-muted mb-0">Buy when they earn it with great technique</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      <% } %>
+    </div>
+  </div>
+
+  <script>
+    const basePath = '<%= basePath %>';
+
+    // Initialize trend chart
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    const trendChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: 'Sessions',
+            data: [],
+            backgroundColor: 'rgba(13, 110, 253, 0.5)',
+            borderColor: 'rgba(13, 110, 253, 1)',
+            borderWidth: 1
+          },
+          {
+            label: 'Sales',
+            data: [],
+            backgroundColor: 'rgba(25, 135, 84, 0.5)',
+            borderColor: 'rgba(25, 135, 84, 1)',
+            borderWidth: 1
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { color: 'rgba(255,255,255,0.7)' },
+            grid: { color: 'rgba(255,255,255,0.1)' }
+          },
+          x: {
+            ticks: { color: 'rgba(255,255,255,0.7)' },
+            grid: { color: 'rgba(255,255,255,0.1)' }
+          }
+        },
+        plugins: {
+          legend: {
+            labels: { color: 'rgba(255,255,255,0.7)' }
+          }
+        }
+      }
+    });
+
+    // Load stats for chart
+    async function loadStats() {
+      try {
+        const res = await fetch(basePath + '/dashboard/api/stats');
+        const data = await res.json();
+
+        if (data.success && data.trend.length > 0) {
+          trendChart.data.labels = data.trend.map(d =>
+            new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+          );
+          trendChart.data.datasets[0].data = data.trend.map(d => d.sessions);
+          trendChart.data.datasets[1].data = data.trend.map(d => d.sales);
+          trendChart.update();
+        }
+      } catch (err) {
+        console.error('Failed to load stats:', err);
+      }
+    }
+
+    loadStats();
+  </script>
+</body>
+</html>

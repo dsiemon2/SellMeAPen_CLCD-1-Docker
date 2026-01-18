@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Configurations - Sell Me a Pen Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    :root {
+      --sidebar-bg: <%= branding?.primaryColor || '#4f46e5' %>;
+    }
+    .sidebar { min-height: 100vh; background: var(--sidebar-bg); }
+    .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1rem; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+    .sidebar .nav-link i { margin-right: 0.5rem; }
+    .main-content { background: #f8f9fa; min-height: 100vh; }
+    .nav-divider { border-top: 1px solid rgba(255,255,255,0.2); margin: 0.5rem 0; }
+    .nav-section { color: rgba(255,255,255,0.5); font-size: 0.75rem; padding: 0.5rem 1rem; text-transform: uppercase; }
+    .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
+
+    .provider-card {
+      transition: all 0.3s ease;
+      border: 2px solid #e5e7eb;
+    }
+    .provider-card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .provider-card.active {
+      border-color: #10b981 !important;
+    }
+    .provider-icon {
+      font-size: 48px;
+      margin-bottom: 10px;
+    }
+    .provider-icon.stripe { color: #635BFF; }
+    .provider-icon.braintree { color: #003087; }
+    .provider-icon.square { color: #006AFF; }
+    .provider-icon.authorize { color: #1C3D6E; }
+
+    .badge-configured {
+      background: #dcfce7;
+      color: #166534;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .badge-fee {
+      font-size: 12px;
+      padding: 4px 8px;
+    }
+    .feature-badge {
+      background: #f1f5f9;
+      color: #475569;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      margin: 2px;
+      display: inline-block;
+    }
+
+    .how-it-works {
+      background: #f0f9ff;
+      border: 1px solid #bae6fd;
+    }
+    .how-it-works-item {
+      flex: 1;
+      padding: 15px;
+      border-right: 1px solid #bae6fd;
+    }
+    .how-it-works-item:last-child {
+      border-right: none;
+    }
+
+    .comparison-table th, .comparison-table td {
+      text-align: center;
+      vertical-align: middle;
+    }
+    .comparison-table th:first-child, .comparison-table td:first-child {
+      text-align: left;
+    }
+
+    details summary {
+      cursor: pointer;
+      font-size: 13px;
+      color: #6b7280;
+      margin-bottom: 10px;
+    }
+    details summary:hover {
+      color: #374151;
+    }
+
+    .active-banner {
+      background: linear-gradient(135deg, #635BFF 0%, #7c3aed 100%);
+    }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <%- include('_sidebar', { active: 'payments', basePath, branding }) %>
+
+      <main class="col-md-10 ms-sm-auto main-content p-4">
+        <h2 class="mb-4"><i class="bi bi-credit-card text-primary me-2"></i>Payment Configurations</h2>
+
+        <div class="toast-container"></div>
+
+        <!-- Active Provider Banner -->
+        <% const activeGateway = gateways?.find(g => g.isEnabled); %>
+        <% if (activeGateway) { %>
+        <div class="card active-banner text-white mb-4">
+          <div class="card-body d-flex justify-content-between align-items-center">
+            <div>
+              <div style="font-size: 12px; opacity: 0.8; text-transform: uppercase;">Active Payment Provider</div>
+              <div style="font-size: 20px; font-weight: bold;"><%= activeGateway.name %></div>
+              <div style="font-size: 14px; opacity: 0.9;">
+                <%= activeGateway.testMode ? 'Test Mode' : 'Live Mode' %>
+                <% if (activeGateway.achEnabled) { %> | ACH Enabled<% } %>
+              </div>
+            </div>
+            <div style="font-size: 48px; opacity: 0.3;">
+              <i class="fas fa-check-circle"></i>
+            </div>
+          </div>
+        </div>
+        <% } else { %>
+        <div class="alert alert-warning d-flex align-items-center">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          <strong>No Payment Provider Active</strong> - Configure and enable a payment gateway below to accept payments.
+        </div>
+        <% } %>
+
+        <!-- How It Works -->
+        <div class="card how-it-works mb-4">
+          <div class="card-body p-0 d-flex">
+            <div class="how-it-works-item">
+              <div style="font-weight: 600; color: #0369a1; margin-bottom: 5px;">
+                <i class="fas fa-key"></i> Configure Keys
+              </div>
+              <div style="font-size: 13px; color: #475569;">
+                Enter your API keys for each payment provider. Keys are stored securely in the database.
+              </div>
+            </div>
+            <div class="how-it-works-item">
+              <div style="font-weight: 600; color: #059669; margin-bottom: 5px;">
+                <i class="fas fa-toggle-on"></i> Enable Provider
+              </div>
+              <div style="font-size: 13px; color: #475569;">
+                <strong>Only one provider can be active at a time.</strong> Enabling one disables the others.
+              </div>
+            </div>
+            <div class="how-it-works-item">
+              <div style="font-weight: 600; color: #7c3aed; margin-bottom: 5px;">
+                <i class="fas fa-flask"></i> Test Mode
+              </div>
+              <div style="font-size: 13px; color: #475569;">
+                Toggle test mode to safely test payments without processing real transactions.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Provider Cards Grid -->
+        <div class="row g-4 mb-4">
+          <%
+          const providers = {
+            stripe: {
+              name: 'Stripe',
+              icon: 'fab fa-stripe',
+              color: '#635BFF',
+              description: 'The most popular payment platform',
+              fee: '2.9% + 30¢',
+              features: ['Credit Cards', 'Apple Pay', 'Google Pay', 'ACH'],
+              keyLabels: { publishable: 'Publishable Key', secret: 'Secret Key' },
+              placeholder: { publishable: 'pk_live_...', secret: 'sk_live_...' }
+            },
+            braintree: {
+              name: 'Braintree',
+              icon: 'fas fa-credit-card',
+              color: '#003087',
+              description: 'PayPal-owned payment gateway',
+              fee: '2.59% + 49¢',
+              features: ['Credit Cards', 'PayPal', 'Apple Pay', 'Google Pay'],
+              keyLabels: { publishable: 'Public Key', secret: 'Private Key' },
+              placeholder: { publishable: 'Public key...', secret: 'Private key...' },
+              hasMerchantId: true
+            },
+            square: {
+              name: 'Square',
+              icon: 'fas fa-square',
+              color: '#006AFF',
+              description: 'Modern payments infrastructure',
+              fee: '2.6% + 10¢',
+              features: ['Credit Cards', 'Cash App', 'Apple Pay', 'Google Pay'],
+              keyLabels: { publishable: 'Application ID', secret: 'Access Token' },
+              placeholder: { publishable: 'Application ID...', secret: 'Access token...' },
+              hasMerchantId: true
+            },
+            authorize: {
+              name: 'Authorize.net',
+              icon: 'fas fa-university',
+              color: '#1C3D6E',
+              description: 'Trusted enterprise gateway',
+              fee: '2.9% + 30¢',
+              features: ['Credit Cards', 'eCheck/ACH', 'Apple Pay', 'Google Pay'],
+              keyLabels: { publishable: 'API Login ID', secret: 'Transaction Key' },
+              placeholder: { publishable: 'API Login ID...', secret: 'Transaction key...' }
+            }
+          };
+          %>
+
+          <% Object.entries(providers).forEach(([code, provider]) => {
+            const gateway = gateways?.find(g => g.provider === code);
+            const isEnabled = gateway?.isEnabled || false;
+            const hasKeys = !!gateway?.publishableKey;
+          %>
+          <div class="col-md-6">
+            <div class="card provider-card h-100 <%= isEnabled ? 'active' : '' %>" data-provider="<%= code %>">
+              <% if (isEnabled) { %>
+              <div style="position: absolute; top: 15px; left: 15px;">
+                <span class="badge bg-success"><i class="fas fa-check"></i> Active</span>
+              </div>
+              <% } %>
+
+              <div class="card-body">
+                <!-- Provider Header -->
+                <div class="text-center pb-3 mb-3 border-bottom">
+                  <div class="provider-icon <%= code %>">
+                    <i class="<%= provider.icon %>"></i>
+                  </div>
+                  <h5 class="mb-1"><%= provider.name %></h5>
+                  <p class="text-muted small mb-2"><%= provider.description %></p>
+                  <span class="badge badge-fee" style="background: <%= provider.color %>15; color: <%= provider.color %>;">
+                    Fee: <%= provider.fee %>
+                  </span>
+                </div>
+
+                <!-- Supported Methods -->
+                <div class="mb-3">
+                  <label class="form-label small text-uppercase text-muted">
+                    <i class="fas fa-check-circle"></i> Supported Methods
+                  </label>
+                  <div>
+                    <% provider.features.forEach(feature => { %>
+                    <span class="feature-badge"><%= feature %></span>
+                    <% }); %>
+                  </div>
+                </div>
+
+                <!-- Publishable Key -->
+                <div class="mb-3">
+                  <label class="form-label">
+                    <i class="fas fa-eye"></i> <%= provider.keyLabels.publishable %>
+                    <% if (hasKeys) { %>
+                    <span class="badge-configured ms-1">Configured</span>
+                    <% } %>
+                  </label>
+                  <input type="text" class="form-control publishable-key-input"
+                         data-provider="<%= code %>"
+                         value="<%= gateway?.publishableKey || '' %>"
+                         placeholder="<%= provider.placeholder.publishable %>">
+                </div>
+
+                <!-- Secret Key -->
+                <div class="mb-3">
+                  <label class="form-label">
+                    <i class="fas fa-key"></i> <%= provider.keyLabels.secret %>
+                    <% if (gateway?.secretKey) { %>
+                    <span class="badge-configured ms-1">Set</span>
+                    <% } %>
+                  </label>
+                  <input type="password" class="form-control secret-key-input"
+                         data-provider="<%= code %>"
+                         placeholder="<%= gateway?.secretKey ? '••••••••••••••••' : provider.placeholder.secret %>">
+                </div>
+
+                <% if (provider.hasMerchantId) { %>
+                <!-- Merchant ID -->
+                <div class="mb-3">
+                  <label class="form-label">
+                    <i class="fas fa-store"></i> Merchant ID
+                  </label>
+                  <input type="text" class="form-control merchant-id-input"
+                         data-provider="<%= code %>"
+                         value="<%= gateway?.merchantId || '' %>"
+                         placeholder="Enter merchant ID...">
+                </div>
+                <% } %>
+
+                <!-- Advanced Settings -->
+                <details class="mt-3">
+                  <summary>
+                    <i class="fas fa-cog"></i> Advanced Settings
+                  </summary>
+
+                  <div class="mb-3 mt-2">
+                    <label class="form-label small">
+                      <i class="fas fa-shield-alt"></i> Webhook Secret
+                    </label>
+                    <input type="password" class="form-control form-control-sm webhook-secret-input"
+                           data-provider="<%= code %>"
+                           placeholder="<%= gateway?.webhookSecret ? '••••••••••••••••' : 'Enter webhook secret...' %>">
+                  </div>
+
+                  <div class="d-flex gap-4 mt-3">
+                    <label class="d-flex align-items-center gap-2" style="cursor: pointer;">
+                      <input type="checkbox" class="form-check-input test-mode-toggle" data-provider="<%= code %>"
+                             <%= (gateway?.testMode !== false) ? 'checked' : '' %>>
+                      <span class="small"><i class="fas fa-flask"></i> Test/Sandbox Mode</span>
+                    </label>
+
+                    <% if (code === 'stripe') { %>
+                    <label class="d-flex align-items-center gap-2" style="cursor: pointer;">
+                      <input type="checkbox" class="form-check-input ach-toggle" data-provider="<%= code %>"
+                             <%= gateway?.achEnabled ? 'checked' : '' %>>
+                      <span class="small"><i class="fas fa-university"></i> ACH Bank Transfers</span>
+                    </label>
+                    <% } %>
+                  </div>
+                </details>
+
+                <!-- Action Buttons -->
+                <div class="d-flex gap-2 mt-4 pt-3 border-top">
+                  <button class="btn btn-primary btn-sm flex-fill save-gateway" data-provider="<%= code %>">
+                    <i class="fas fa-save"></i> Save
+                  </button>
+                  <button class="btn btn-secondary btn-sm flex-fill test-gateway" data-provider="<%= code %>"
+                          <%= !hasKeys ? 'disabled' : '' %>>
+                    <i class="fas fa-plug"></i> Test
+                  </button>
+                  <% if (isEnabled) { %>
+                  <button class="btn btn-danger btn-sm flex-fill disable-gateway" data-provider="<%= code %>">
+                    <i class="fas fa-times"></i> Disable
+                  </button>
+                  <% } else { %>
+                  <button class="btn btn-success btn-sm flex-fill enable-gateway" data-provider="<%= code %>"
+                          <%= !hasKeys ? 'disabled' : '' %>>
+                    <i class="fas fa-check"></i> Enable
+                  </button>
+                  <% } %>
+                </div>
+              </div>
+            </div>
+          </div>
+          <% }); %>
+        </div>
+
+        <!-- Provider Comparison Table -->
+        <div class="card mb-4">
+          <div class="card-header bg-light">
+            <i class="fas fa-balance-scale"></i> Provider Comparison
+          </div>
+          <div class="card-body p-0">
+            <table class="table table-hover mb-0 comparison-table">
+              <thead class="table-light">
+                <tr>
+                  <th>Provider</th>
+                  <th>Processing Fee</th>
+                  <th>Credit Cards</th>
+                  <th>ACH/eCheck</th>
+                  <th>PayPal</th>
+                  <th>Apple Pay</th>
+                  <th>Google Pay</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><i class="fab fa-stripe" style="color: #635BFF;"></i> Stripe</td>
+                  <td>2.9% + 30¢</td>
+                  <td><i class="fas fa-check text-success"></i></td>
+                  <td><i class="fas fa-check text-success"></i></td>
+                  <td><i class="fas fa-times text-danger"></i></td>
+                  <td><i class="fas fa-check text-success"></i></td>
+                  <td><i class="fas fa-check text-success"></i></td>
+                </tr>
+                <tr>
+                  <td><i class="fas fa-credit-card" style="color: #003087;"></i> Braintree</td>
+                  <td>2.59% + 49¢</td>
+                  <td><i class="fas fa-check text-success"></i></td>
+                  <td><i class="fas fa-times text-danger"></i></td>
+                  <td><i class="fas fa-check text-success"></i></td>
+                  <td><i class="fas fa-check text-success"></i></td>
+                  <td><i class="fas fa-check text-success"></i></td>
+                </tr>
+                <tr>
+                  <td><i class="fas fa-square" style="color: #006AFF;"></i> Square</td>
+                  <td>2.6% + 10¢</td>
+                  <td><i class="fas fa-check text-success"></i></td>
+                  <td><i class="fas fa-times text-danger"></i></td>
+                  <td><i class="fas fa-times text-danger"></i></td>
+                  <td><i class="fas fa-check text-success"></i></td>
+                  <td><i class="fas fa-check text-success"></i></td>
+                </tr>
+                <tr>
+                  <td><i class="fas fa-university" style="color: #1C3D6E;"></i> Authorize.net</td>
+                  <td>2.9% + 30¢</td>
+                  <td><i class="fas fa-check text-success"></i></td>
+                  <td><i class="fas fa-check text-success"></i></td>
+                  <td><i class="fas fa-times text-danger"></i></td>
+                  <td><i class="fas fa-check text-success"></i></td>
+                  <td><i class="fas fa-check text-success"></i></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Info Cards -->
+        <div class="row g-4">
+          <div class="col-md-6">
+            <div class="card h-100">
+              <div class="card-header bg-light">
+                <i class="fas fa-link"></i> Get API Keys
+              </div>
+              <ul class="list-group list-group-flush">
+                <li class="list-group-item">
+                  <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="color: #635BFF; text-decoration: none;">
+                    <i class="fab fa-stripe"></i> Stripe Dashboard - API Keys
+                  </a>
+                </li>
+                <li class="list-group-item">
+                  <a href="https://www.braintreegateway.com/login" target="_blank" style="color: #003087; text-decoration: none;">
+                    <i class="fas fa-credit-card"></i> Braintree Control Panel
+                  </a>
+                </li>
+                <li class="list-group-item">
+                  <a href="https://squareup.com/dashboard/apps/my-applications" target="_blank" style="color: #006AFF; text-decoration: none;">
+                    <i class="fas fa-square"></i> Square Developer Dashboard
+                  </a>
+                </li>
+                <li class="list-group-item">
+                  <a href="https://www.authorize.net/about-us/contact.html" target="_blank" style="color: #1C3D6E; text-decoration: none;">
+                    <i class="fas fa-university"></i> Authorize.net Merchant Interface
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="card h-100">
+              <div class="card-header bg-light">
+                <i class="fas fa-info-circle"></i> Important Notes
+              </div>
+              <ul class="list-group list-group-flush">
+                <li class="list-group-item">
+                  <strong><i class="fas fa-shield-alt text-success"></i> Secure Storage</strong> - API keys are stored encrypted in the database, not in environment files.
+                </li>
+                <li class="list-group-item">
+                  <strong><i class="fas fa-flask text-warning"></i> Test Mode</strong> - Always test with sandbox/test keys before going live.
+                </li>
+                <li class="list-group-item">
+                  <strong><i class="fas fa-exchange-alt text-primary"></i> Single Provider</strong> - Only one payment provider can be active at a time.
+                </li>
+                <li class="list-group-item">
+                  <strong><i class="fas fa-sync text-info"></i> Webhooks</strong> - Configure webhooks in your provider dashboard for payment notifications.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const basePath = '<%= typeof basePath !== "undefined" ? basePath : "" %>';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+      tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+    });
+
+    function showToast(message, type = 'success') {
+      const container = document.querySelector('.toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast show align-items-center text-bg-${type} border-0`;
+      toast.innerHTML = `<div class="d-flex"><div class="toast-body">${message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    // Save Gateway Configuration
+    document.querySelectorAll('.save-gateway').forEach(btn => {
+      btn.addEventListener('click', async function() {
+        const provider = this.dataset.provider;
+        const card = this.closest('.provider-card');
+
+        const publishableKey = card.querySelector('.publishable-key-input').value.trim();
+        const secretKey = card.querySelector('.secret-key-input').value.trim();
+        const webhookSecret = card.querySelector('.webhook-secret-input')?.value.trim();
+        const merchantId = card.querySelector('.merchant-id-input')?.value.trim();
+        const testMode = card.querySelector('.test-mode-toggle')?.checked ?? true;
+        const achEnabled = card.querySelector('.ach-toggle')?.checked ?? false;
+
+        if (!publishableKey) {
+          showToast('Please enter the publishable/public key', 'warning');
+          return;
+        }
+
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+        const data = {
+          publishableKey,
+          testMode,
+          achEnabled
+        };
+
+        if (secretKey) data.secretKey = secretKey;
+        if (webhookSecret) data.webhookSecret = webhookSecret;
+        if (merchantId) data.merchantId = merchantId;
+
+        try {
+          const res = await fetch(`${basePath}/admin/payments/${provider}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+          });
+
+          const result = await res.json();
+          if (result.success) {
+            this.innerHTML = '<i class="fas fa-check"></i> Saved!';
+            this.classList.remove('btn-primary');
+            this.classList.add('btn-success');
+            showToast('Gateway configuration saved!');
+
+            // Clear secret key input
+            card.querySelector('.secret-key-input').value = '';
+            card.querySelector('.secret-key-input').placeholder = '••••••••••••••••';
+
+            setTimeout(() => location.reload(), 1000);
+          } else {
+            showToast(result.error || 'Failed to save configuration', 'danger');
+            this.innerHTML = '<i class="fas fa-save"></i> Save';
+          }
+        } catch (err) {
+          showToast('Error saving configuration', 'danger');
+          this.innerHTML = '<i class="fas fa-save"></i> Save';
+        } finally {
+          this.disabled = false;
+        }
+      });
+    });
+
+    // Test Gateway Connection
+    document.querySelectorAll('.test-gateway').forEach(btn => {
+      btn.addEventListener('click', async function() {
+        const provider = this.dataset.provider;
+
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing...';
+
+        try {
+          const res = await fetch(`${basePath}/admin/payments/${provider}/test`, {
+            method: 'POST'
+          });
+
+          const result = await res.json();
+          if (result.success) {
+            this.innerHTML = '<i class="fas fa-check"></i> Success!';
+            this.classList.remove('btn-secondary');
+            this.classList.add('btn-success');
+            showToast('Connection successful! API is working.');
+          } else {
+            this.innerHTML = '<i class="fas fa-times"></i> Failed';
+            this.classList.remove('btn-secondary');
+            this.classList.add('btn-danger');
+            showToast('Test failed: ' + (result.error || 'Unknown error'), 'danger');
+          }
+
+          setTimeout(() => {
+            this.innerHTML = '<i class="fas fa-plug"></i> Test';
+            this.classList.remove('btn-success', 'btn-danger');
+            this.classList.add('btn-secondary');
+          }, 3000);
+        } catch (err) {
+          showToast('Error testing connection', 'danger');
+        } finally {
+          this.disabled = false;
+        }
+      });
+    });
+
+    // Enable Gateway
+    document.querySelectorAll('.enable-gateway').forEach(btn => {
+      btn.addEventListener('click', async function() {
+        const provider = this.dataset.provider;
+        const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
+
+        if (!confirm(`Enable ${providerName} as your payment provider? This will disable any other active provider.`)) {
+          return;
+        }
+
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+        try {
+          const res = await fetch(`${basePath}/admin/payments/${provider}/enable`, {
+            method: 'POST'
+          });
+
+          const result = await res.json();
+          if (result.success) {
+            showToast(`${providerName} enabled successfully!`);
+            location.reload();
+          } else {
+            showToast(result.error || 'Failed to enable provider', 'danger');
+          }
+        } catch (err) {
+          showToast('Error enabling provider', 'danger');
+        } finally {
+          this.disabled = false;
+          this.innerHTML = '<i class="fas fa-check"></i> Enable';
+        }
+      });
+    });
+
+    // Disable Gateway
+    document.querySelectorAll('.disable-gateway').forEach(btn => {
+      btn.addEventListener('click', async function() {
+        const provider = this.dataset.provider;
+        const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
+
+        if (!confirm(`Disable ${providerName}? You will need to enable another provider to accept payments.`)) {
+          return;
+        }
+
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+        try {
+          const res = await fetch(`${basePath}/admin/payments/${provider}/disable`, {
+            method: 'POST'
+          });
+
+          const result = await res.json();
+          if (result.success) {
+            showToast(`${providerName} disabled`);
+            location.reload();
+          } else {
+            showToast(result.error || 'Failed to disable provider', 'danger');
+          }
+        } catch (err) {
+          showToast('Error disabling provider', 'danger');
+        } finally {
+          this.disabled = false;
+        }
+      });
+    });
+  </script>
+</body>
+</html>

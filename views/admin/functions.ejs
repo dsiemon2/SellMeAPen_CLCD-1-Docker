@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Functions - Sell Me a Pen Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    .sidebar { min-height: 100vh; background: #2c3e50; }
+    .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1rem; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+    .sidebar .nav-link i { margin-right: 0.5rem; }
+    .main-content { background: #f8f9fa; min-height: 100vh; }
+    .nav-divider { border-top: 1px solid rgba(255,255,255,0.2); margin: 0.5rem 0; }
+    .nav-section { color: rgba(255,255,255,0.5); font-size: 0.75rem; padding: 0.5rem 1rem; text-transform: uppercase; }
+    .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
+    .code-editor { font-family: 'Consolas', 'Monaco', monospace; font-size: 13px; }
+    .bulk-actions { display: none; background: #e3f2fd; padding: 0.75rem 1rem; border-radius: 8px; }
+    .bulk-actions.show { display: flex; }
+    .row-checkbox { cursor: pointer; }
+    tr.selected { background-color: #e3f2fd !important; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <%- include('_sidebar', { active: 'functions' }) %>
+
+      <main class="col-md-10 ms-sm-auto main-content p-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h2><i class="bi bi-code-square text-primary me-2"></i>Functions</h2>
+          <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addFunctionModal" title="Create a new custom function">
+            <i class="bi bi-plus-lg me-2"></i>Create Function
+          </button>
+        </div>
+
+        <div class="toast-container"></div>
+
+        <p class="text-muted mb-4">Define custom JavaScript functions that can be called by AI tools, webhooks, or logic rules.</p>
+
+        <!-- Bulk Actions -->
+        <div class="bulk-actions mb-3" id="bulkActions">
+          <span class="me-3"><strong id="selectedCount">0</strong> selected</span>
+          <button class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="Delete selected functions" onclick="deleteSelected()">
+            <i class="bi bi-trash"></i> Delete Selected
+          </button>
+        </div>
+
+        <!-- Functions List -->
+        <div class="card">
+          <div class="card-body p-0">
+            <table class="table table-hover mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 40px;">
+                    <input type="checkbox" class="form-check-input" id="selectAll" data-bs-toggle="tooltip" title="Select all">
+                  </th>
+                  <th>Name</th>
+                  <th>Description</th>
+                  <th>Parameters</th>
+                  <th>Last Run</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="functionsTable">
+                <% if (functions && functions.length > 0) { %>
+                  <% functions.forEach(fn => { %>
+                    <tr data-id="<%= fn.id %>">
+                      <td><input type="checkbox" class="form-check-input row-checkbox"></td>
+                      <td><code><%= fn.name %></code></td>
+                      <td><%= fn.description %></td>
+                      <td>
+                        <% if (fn.params && fn.params.length > 0) { %>
+                          <% fn.params.forEach(p => { %>
+                            <span class="badge bg-secondary"><%= p %></span>
+                          <% }) %>
+                        <% } else { %>
+                          <span class="text-muted">None</span>
+                        <% } %>
+                      </td>
+                      <td><%= fn.lastRun ? new Date(fn.lastRun).toLocaleString() : 'Never' %></td>
+                      <td>
+                        <span class="badge bg-<%= fn.enabled ? 'success' : 'secondary' %>">
+                          <%= fn.enabled ? 'Active' : 'Disabled' %>
+                        </span>
+                      </td>
+                      <td>
+                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="tooltip" title="Edit function" onclick="editFunction('<%= fn.id %>')">
+                          <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-info" data-bs-toggle="tooltip" title="Test function" onclick="testFunction('<%= fn.id %>')">
+                          <i class="bi bi-play"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="tooltip" title="Toggle function" onclick="toggleFunction('<%= fn.id %>')">
+                          <i class="bi bi-toggle-on"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="Delete function" onclick="deleteFunction('<%= fn.id %>')">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  <% }) %>
+                <% } else { %>
+                  <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                      <i class="bi bi-code-square fs-1 d-block mb-2"></i>
+                      No functions configured. Click "Create Function" to add one.
+                    </td>
+                  </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+          <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <div class="text-muted small">Showing <span id="showingStart">1</span>-<span id="showingEnd"><%= functions ? functions.length : 0 %></span> of <span id="totalRows"><%= functions ? functions.length : 0 %></span></div>
+            <nav>
+              <ul class="pagination pagination-sm mb-0" id="pagination"></ul>
+            </nav>
+            <select class="form-select form-select-sm" id="pageSize" style="width: auto;">
+              <option value="10">10 / page</option>
+              <option value="25">25 / page</option>
+              <option value="50">50 / page</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Available Context -->
+        <div class="card mt-4">
+          <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-braces me-2"></i>Available Context Variables</h5>
+          </div>
+          <div class="card-body">
+            <p class="text-muted">Functions have access to the following context:</p>
+            <div class="row">
+              <div class="col-md-4">
+                <h6>Session</h6>
+                <ul class="list-unstyled small">
+                  <li><code>ctx.session.id</code></li>
+                  <li><code>ctx.session.messages</code></li>
+                  <li><code>ctx.session.startTime</code></li>
+                </ul>
+              </div>
+              <div class="col-md-4">
+                <h6>Customer</h6>
+                <ul class="list-unstyled small">
+                  <li><code>ctx.customer.name</code></li>
+                  <li><code>ctx.customer.phone</code></li>
+                  <li><code>ctx.customer.sentiment</code></li>
+                </ul>
+              </div>
+              <div class="col-md-4">
+                <h6>Utilities</h6>
+                <ul class="list-unstyled small">
+                  <li><code>ctx.fetch(url, opts)</code></li>
+                  <li><code>ctx.log(msg)</code></li>
+                  <li><code>ctx.db.query(sql)</code></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Add Function Modal -->
+  <div class="modal fade" id="addFunctionModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Create Function</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="addFunctionForm">
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label">Function Name</label>
+                  <input type="text" class="form-control font-monospace" id="fnName" required placeholder="calculateDiscount">
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label">Parameters (comma-separated)</label>
+                  <input type="text" class="form-control font-monospace" id="fnParams" placeholder="price, quantity, couponCode">
+                </div>
+              </div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Description</label>
+              <input type="text" class="form-control" id="fnDesc" placeholder="Calculates discount based on quantity and coupon">
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Function Body (JavaScript)</label>
+              <textarea class="form-control code-editor" id="fnBody" rows="12" placeholder="// Your function code here
+// Access context via 'ctx' object
+// Return a value or object
+
+const discount = price * 0.1;
+return {
+  originalPrice: price,
+  discount: discount,
+  finalPrice: price - discount
+};"></textarea>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-outline-info" onclick="validateFunction()">
+            <i class="bi bi-check-circle me-2"></i>Validate
+          </button>
+          <button type="button" class="btn btn-primary" onclick="addFunction()">Create Function</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Test Function Modal -->
+  <div class="modal fade" id="testFunctionModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Test Function</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Test Input (JSON)</label>
+            <textarea class="form-control font-monospace" id="testInput" rows="4" placeholder='{"price": 100, "quantity": 5}'></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Output</label>
+            <pre class="bg-dark text-light p-3 rounded" id="testOutput">Run the function to see output...</pre>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-primary" onclick="runTest()">
+            <i class="bi bi-play me-2"></i>Run
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    let currentTestId = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+      tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+      initCheckboxes();
+    });
+
+    function showToast(message, type = 'success') {
+      const container = document.querySelector('.toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast show align-items-center text-bg-${type} border-0`;
+      toast.innerHTML = `<div class="d-flex"><div class="toast-body">${message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    function initCheckboxes() {
+      const selectAll = document.getElementById('selectAll');
+      const checkboxes = document.querySelectorAll('.row-checkbox');
+      const bulkActions = document.getElementById('bulkActions');
+      const selectedCount = document.getElementById('selectedCount');
+
+      selectAll?.addEventListener('change', () => {
+        checkboxes.forEach(cb => {
+          cb.checked = selectAll.checked;
+          cb.closest('tr').classList.toggle('selected', selectAll.checked);
+        });
+        updateBulkActions();
+      });
+
+      checkboxes.forEach(cb => {
+        cb.addEventListener('change', () => {
+          cb.closest('tr').classList.toggle('selected', cb.checked);
+          updateBulkActions();
+        });
+      });
+
+      function updateBulkActions() {
+        const checked = document.querySelectorAll('.row-checkbox:checked').length;
+        selectedCount.textContent = checked;
+        bulkActions.classList.toggle('show', checked > 0);
+      }
+    }
+
+    function validateFunction() {
+      const body = document.getElementById('fnBody').value;
+      try {
+        new Function('ctx', body);
+        showToast('Function syntax is valid!');
+      } catch (e) {
+        showToast('Syntax error: ' + e.message, 'danger');
+      }
+    }
+
+    async function addFunction() {
+      const params = document.getElementById('fnParams').value
+        .split(',')
+        .map(p => p.trim())
+        .filter(p => p);
+
+      const data = {
+        name: document.getElementById('fnName').value,
+        description: document.getElementById('fnDesc').value,
+        params,
+        body: document.getElementById('fnBody').value
+      };
+
+      try {
+        const res = await fetch(`/admin/functions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (res.ok) {
+          showToast('Function created!');
+          location.reload();
+        } else {
+          showToast('Failed to create function', 'danger');
+        }
+      } catch (err) {
+        showToast('Error creating function', 'danger');
+      }
+    }
+
+    function testFunction(id) {
+      currentTestId = id;
+      document.getElementById('testOutput').textContent = 'Run the function to see output...';
+      new bootstrap.Modal(document.getElementById('testFunctionModal')).show();
+    }
+
+    async function runTest() {
+      let input = {};
+      try {
+        input = JSON.parse(document.getElementById('testInput').value || '{}');
+      } catch (e) {
+        showToast('Invalid JSON input', 'danger');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/admin/functions/${currentTestId}/test`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ input })
+        });
+        const data = await res.json();
+        document.getElementById('testOutput').textContent = JSON.stringify(data.result, null, 2);
+      } catch (err) {
+        document.getElementById('testOutput').textContent = 'Error: ' + err.message;
+      }
+    }
+
+    async function toggleFunction(id) {
+      try {
+        const res = await fetch(`/admin/functions/${id}/toggle`, { method: 'POST' });
+        if (res.ok) location.reload();
+      } catch (err) {
+        showToast('Error toggling function', 'danger');
+      }
+    }
+
+    async function deleteFunction(id) {
+      if (!confirm('Delete this function?')) return;
+      try {
+        const res = await fetch(`/admin/functions/${id}`, { method: 'DELETE' });
+        if (res.ok) location.reload();
+      } catch (err) {
+        showToast('Error deleting function', 'danger');
+      }
+    }
+
+    async function deleteSelected() {
+      const selected = document.querySelectorAll('.row-checkbox:checked');
+      if (selected.length === 0) return;
+      if (!confirm(`Delete ${selected.length} function(s)?`)) return;
+
+      for (const cb of selected) {
+        const id = cb.closest('tr').dataset.id;
+        await fetch(`/admin/functions/${id}`, { method: 'DELETE' });
+      }
+      showToast('Selected functions deleted!');
+      location.reload();
+    }
+  </script>
+</body>
+</html>

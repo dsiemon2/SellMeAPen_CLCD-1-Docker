@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sessions - Sell Me a Pen Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    .sidebar { min-height: 100vh; background: #2c3e50; }
+    .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1rem; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+    .sidebar .nav-link i { margin-right: 0.5rem; }
+    .main-content { background: #f8f9fa; min-height: 100vh; }
+    .nav-divider { border-top: 1px solid rgba(255,255,255,0.2); margin: 0.5rem 0; }
+    .nav-section { color: rgba(255,255,255,0.5); font-size: 0.75rem; padding: 0.5rem 1rem; text-transform: uppercase; }
+    .bulk-actions { display: none; background: #e3f2fd; padding: 0.75rem 1rem; border-radius: 8px; }
+    .bulk-actions.show { display: flex; }
+    .row-checkbox { cursor: pointer; }
+    tr.selected { background-color: #e3f2fd !important; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <%- include('_sidebar', { active: 'sessions' }) %>
+
+      <main class="col-md-10 ms-sm-auto main-content p-4">
+        <h2 class="mb-4"><i class="bi bi-chat-left-text text-primary me-2"></i>Training Sessions</h2>
+
+        <!-- Bulk Actions Toolbar -->
+        <div class="bulk-actions mb-3 align-items-center justify-content-between" id="bulkActions">
+          <div>
+            <span class="me-3"><strong id="selectedCount">0</strong> selected</span>
+            <button class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="Delete selected sessions" onclick="bulkDelete()">
+              <i class="bi bi-trash"></i> Delete Selected
+            </button>
+            <button class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="tooltip" title="Export selected to CSV" onclick="bulkExport()">
+              <i class="bi bi-download"></i> Export
+            </button>
+          </div>
+          <button class="btn btn-sm btn-link" onclick="clearSelection()">Clear Selection</button>
+        </div>
+
+        <div class="card">
+          <div class="card-body p-0">
+            <table class="table table-hover mb-0" id="sessionsTable">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 40px;">
+                    <input type="checkbox" class="form-check-input" id="selectAll" data-bs-toggle="tooltip" title="Select all rows">
+                  </th>
+                  <th>Session ID</th>
+                  <th>Started</th>
+                  <th>Duration</th>
+                  <th>Messages</th>
+                  <th>Phase</th>
+                  <th>Outcome</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody">
+                <% sessions.forEach(session => { %>
+                <tr data-id="<%= session.sessionId %>">
+                  <td>
+                    <input type="checkbox" class="form-check-input row-checkbox" value="<%= session.sessionId %>">
+                  </td>
+                  <td><code><%= session.sessionId.substring(0, 8) %>...</code></td>
+                  <td><%= new Date(session.startedAt).toLocaleString() %></td>
+                  <td>
+                    <% if (session.endedAt) { %>
+                      <%= Math.round((new Date(session.endedAt) - new Date(session.startedAt)) / 1000 / 60) %> min
+                    <% } else { %>
+                      <span class="text-muted">In progress</span>
+                    <% } %>
+                  </td>
+                  <td><%= session.analytics?.totalMessages || 0 %></td>
+                  <td>
+                    <span class="badge bg-secondary"><%= session.currentPhase %></span>
+                  </td>
+                  <td>
+                    <% if (session.outcome === 'sale_made') { %>
+                      <span class="badge bg-success"><i class="bi bi-check-circle"></i> Sale Made</span>
+                    <% } else if (session.outcome === 'no_sale') { %>
+                      <span class="badge bg-danger"><i class="bi bi-x-circle"></i> No Sale</span>
+                    <% } else if (session.outcome === 'abandoned') { %>
+                      <span class="badge bg-warning text-dark"><i class="bi bi-dash-circle"></i> Abandoned</span>
+                    <% } else { %>
+                      <span class="badge bg-info"><i class="bi bi-hourglass"></i> In Progress</span>
+                    <% } %>
+                  </td>
+                  <td>
+                    <a href="/admin/sessions/<%= session.sessionId %>"
+                       class="btn btn-sm btn-outline-primary"
+                       data-bs-toggle="tooltip"
+                       title="View session details and conversation">
+                      <i class="bi bi-eye"></i>
+                    </a>
+                    <button class="btn btn-sm btn-outline-danger ms-1"
+                            data-bs-toggle="tooltip"
+                            title="Delete this session"
+                            onclick="deleteSession('<%= session.sessionId %>')">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+                <% }) %>
+                <% if (sessions.length === 0) { %>
+                <tr id="emptyRow">
+                  <td colspan="8" class="text-center text-muted py-4">
+                    No sessions yet.
+                  </td>
+                </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <div class="text-muted small">
+              Showing <span id="showingStart">1</span>-<span id="showingEnd"><%= Math.min(10, sessions.length) %></span> of <span id="totalRows"><%= sessions.length %></span> sessions
+            </div>
+            <nav>
+              <ul class="pagination pagination-sm mb-0" id="pagination">
+                <li class="page-item disabled" id="prevPage">
+                  <a class="page-link" href="#" onclick="changePage(-1); return false;">
+                    <i class="bi bi-chevron-left"></i>
+                  </a>
+                </li>
+                <!-- Page numbers inserted by JS -->
+                <li class="page-item disabled" id="nextPage">
+                  <a class="page-link" href="#" onclick="changePage(1); return false;">
+                    <i class="bi bi-chevron-right"></i>
+                  </a>
+                </li>
+              </ul>
+            </nav>
+            <div>
+              <select class="form-select form-select-sm" id="pageSize" style="width: auto;" data-bs-toggle="tooltip" title="Rows per page">
+                <option value="10">10 / page</option>
+                <option value="25">25 / page</option>
+                <option value="50">50 / page</option>
+                <option value="100">100 / page</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    let currentPage = 1;
+    let pageSize = 10;
+    let allRows = [];
+    let selectedRows = new Set();
+
+    // Initialize tooltips
+    document.addEventListener('DOMContentLoaded', () => {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+      tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+
+      // Store all rows for pagination
+      allRows = Array.from(document.querySelectorAll('#tableBody tr:not(#emptyRow)'));
+      updatePagination();
+    });
+
+    // Select all checkbox
+    document.getElementById('selectAll').addEventListener('change', function() {
+      const checkboxes = document.querySelectorAll('.row-checkbox');
+      checkboxes.forEach(cb => {
+        cb.checked = this.checked;
+        const row = cb.closest('tr');
+        if (this.checked) {
+          selectedRows.add(cb.value);
+          row.classList.add('selected');
+        } else {
+          selectedRows.delete(cb.value);
+          row.classList.remove('selected');
+        }
+      });
+      updateBulkActions();
+    });
+
+    // Individual row checkboxes
+    document.querySelectorAll('.row-checkbox').forEach(cb => {
+      cb.addEventListener('change', function() {
+        const row = this.closest('tr');
+        if (this.checked) {
+          selectedRows.add(this.value);
+          row.classList.add('selected');
+        } else {
+          selectedRows.delete(this.value);
+          row.classList.remove('selected');
+        }
+        updateBulkActions();
+      });
+    });
+
+    function updateBulkActions() {
+      const bulkActions = document.getElementById('bulkActions');
+      const selectedCount = document.getElementById('selectedCount');
+      selectedCount.textContent = selectedRows.size;
+      if (selectedRows.size > 0) {
+        bulkActions.classList.add('show');
+      } else {
+        bulkActions.classList.remove('show');
+      }
+    }
+
+    function clearSelection() {
+      selectedRows.clear();
+      document.querySelectorAll('.row-checkbox').forEach(cb => {
+        cb.checked = false;
+        cb.closest('tr').classList.remove('selected');
+      });
+      document.getElementById('selectAll').checked = false;
+      updateBulkActions();
+    }
+
+    function updatePagination() {
+      const totalPages = Math.ceil(allRows.length / pageSize);
+      const start = (currentPage - 1) * pageSize;
+      const end = Math.min(start + pageSize, allRows.length);
+
+      // Show/hide rows
+      allRows.forEach((row, idx) => {
+        row.style.display = (idx >= start && idx < end) ? '' : 'none';
+      });
+
+      // Update info text
+      document.getElementById('showingStart').textContent = allRows.length > 0 ? start + 1 : 0;
+      document.getElementById('showingEnd').textContent = end;
+      document.getElementById('totalRows').textContent = allRows.length;
+
+      // Update pagination buttons
+      document.getElementById('prevPage').classList.toggle('disabled', currentPage === 1);
+      document.getElementById('nextPage').classList.toggle('disabled', currentPage >= totalPages);
+
+      // Generate page numbers
+      const pagination = document.getElementById('pagination');
+      const pageItems = pagination.querySelectorAll('.page-number');
+      pageItems.forEach(item => item.remove());
+
+      const nextPageLi = document.getElementById('nextPage');
+      for (let i = 1; i <= totalPages; i++) {
+        const li = document.createElement('li');
+        li.className = `page-item page-number ${i === currentPage ? 'active' : ''}`;
+        li.innerHTML = `<a class="page-link" href="#" onclick="goToPage(${i}); return false;">${i}</a>`;
+        pagination.insertBefore(li, nextPageLi);
+      }
+    }
+
+    function changePage(delta) {
+      const totalPages = Math.ceil(allRows.length / pageSize);
+      const newPage = currentPage + delta;
+      if (newPage >= 1 && newPage <= totalPages) {
+        currentPage = newPage;
+        updatePagination();
+      }
+    }
+
+    function goToPage(page) {
+      currentPage = page;
+      updatePagination();
+    }
+
+    document.getElementById('pageSize').addEventListener('change', function() {
+      pageSize = parseInt(this.value);
+      currentPage = 1;
+      updatePagination();
+    });
+
+    async function deleteSession(sessionId) {
+      if (!confirm('Delete this session?')) return;
+      try {
+        await fetch(`/admin/sessions/${sessionId}`, { method: 'DELETE' });
+        location.reload();
+      } catch (err) {
+        alert('Error deleting session');
+      }
+    }
+
+    async function bulkDelete() {
+      if (!confirm(`Delete ${selectedRows.size} selected sessions?`)) return;
+      try {
+        for (const id of selectedRows) {
+          await fetch(`/admin/sessions/${id}`, { method: 'DELETE' });
+        }
+        location.reload();
+      } catch (err) {
+        alert('Error deleting sessions');
+      }
+    }
+
+    function bulkExport() {
+      const rows = allRows.filter(row => selectedRows.has(row.dataset.id));
+      const csv = rows.map(row => {
+        const cells = row.querySelectorAll('td');
+        return [cells[1].textContent, cells[2].textContent, cells[3].textContent, cells[4].textContent, cells[5].textContent, cells[6].textContent].join(',');
+      }).join('\n');
+      const blob = new Blob(['Session ID,Started,Duration,Messages,Phase,Outcome\n' + csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sessions.csv';
+      a.click();
+    }
+  </script>
+</body>
+</html>

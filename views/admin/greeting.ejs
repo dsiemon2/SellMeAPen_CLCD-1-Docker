@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Greeting - Sell Me a Pen Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    .sidebar { min-height: 100vh; background: #2c3e50; }
+    .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1rem; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+    .sidebar .nav-link i { margin-right: 0.5rem; }
+    .main-content { background: #f8f9fa; min-height: 100vh; }
+    .nav-divider { border-top: 1px solid rgba(255,255,255,0.2); margin: 0.5rem 0; }
+    .nav-section { color: rgba(255,255,255,0.5); font-size: 0.75rem; padding: 0.5rem 1rem; text-transform: uppercase; }
+    .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <%- include('_sidebar', { active: 'greeting' }) %>
+
+      <main class="col-md-10 ms-sm-auto main-content p-4">
+        <h2 class="mb-4"><i class="bi bi-chat-quote text-primary me-2"></i>Greeting Configuration</h2>
+
+        <div class="toast-container"></div>
+
+        <div class="card mb-4">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-megaphone me-2"></i>Welcome Message</h5>
+          </div>
+          <div class="card-body">
+            <p class="text-muted mb-4">This is the first message users see when they connect to the training app.</p>
+
+            <form id="greetingForm">
+              <div class="mb-3">
+                <label for="greeting" class="form-label">Greeting Message</label>
+                <textarea class="form-control" id="greeting" name="greeting" rows="4"><%= greeting %></textarea>
+                <div class="form-text">This message welcomes users and tells them how to start.</div>
+              </div>
+
+              <div class="mb-3">
+                <label for="triggerPhrase" class="form-label">Trigger Phrase</label>
+                <input type="text" class="form-control" id="triggerPhrase" name="triggerPhrase" value="<%= triggerPhrase %>">
+                <div class="form-text">The phrase users say to start the sales training (e.g., "sell me a pen").</div>
+              </div>
+
+              <button type="submit" class="btn btn-primary" data-bs-toggle="tooltip" title="Save greeting and trigger phrase">
+                <i class="bi bi-save me-2"></i>Save Changes
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="bi bi-lightbulb me-2"></i>Tips</h5>
+          </div>
+          <div class="card-body">
+            <ul class="mb-0">
+              <li><strong>Be welcoming:</strong> Make users feel comfortable starting the exercise.</li>
+              <li><strong>Set expectations:</strong> Clearly explain what they need to do.</li>
+              <li><strong>Keep it short:</strong> 2-3 sentences is ideal.</li>
+              <li><strong>Include the trigger:</strong> Remind them how to start (e.g., say "Sell me a pen").</li>
+            </ul>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Initialize tooltips
+    document.addEventListener('DOMContentLoaded', () => {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+      tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+    });
+
+    function showToast(message, type = 'success') {
+      const container = document.querySelector('.toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast show align-items-center text-bg-${type} border-0`;
+      toast.innerHTML = `
+        <div class="d-flex">
+          <div class="toast-body">${message}</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+      `;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    document.getElementById('greetingForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      try {
+        const res = await fetch(`/admin/greeting`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            greeting: document.getElementById('greeting').value,
+            triggerPhrase: document.getElementById('triggerPhrase').value
+          })
+        });
+
+        if (res.ok) {
+          showToast('Greeting saved successfully!');
+        } else {
+          showToast('Failed to save', 'danger');
+        }
+      } catch (err) {
+        showToast('Error saving', 'danger');
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Providers - Sell Me a Pen Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    .sidebar { min-height: 100vh; background: #2c3e50; }
+    .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1rem; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+    .sidebar .nav-link i { margin-right: 0.5rem; }
+    .main-content { background: #f8f9fa; min-height: 100vh; }
+    .nav-divider { border-top: 1px solid rgba(255,255,255,0.2); margin: 0.5rem 0; }
+    .nav-section { color: rgba(255,255,255,0.5); font-size: 0.75rem; padding: 0.5rem 1rem; text-transform: uppercase; }
+    .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
+
+    .provider-card {
+      transition: all 0.3s ease;
+      border: 2px solid #e5e7eb;
+    }
+    .provider-card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .provider-card.selected {
+      border-color: #10b981;
+    }
+    .provider-card.disabled {
+      opacity: 0.5;
+      background: #f9fafb;
+    }
+
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 26px;
+    }
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: 0.3s;
+      border-radius: 26px;
+    }
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
+    input:checked + .toggle-slider {
+      background-color: #10b981;
+    }
+    input:checked + .toggle-slider:before {
+      transform: translateX(24px);
+    }
+
+    .temperature-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 3px;
+      outline: none;
+      width: 100%;
+    }
+    .temperature-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #2563eb;
+      cursor: pointer;
+    }
+    .temperature-slider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #2563eb;
+      cursor: pointer;
+      border: none;
+    }
+
+    .provider-icon {
+      font-size: 36px;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <%- include('_sidebar', { active: 'ai-providers' }) %>
+
+      <main class="col-md-10 ms-sm-auto main-content p-4">
+        <h2 class="mb-4"><i class="bi bi-cpu text-primary me-2"></i>AI Model Configuration</h2>
+
+        <!-- Toast container -->
+        <div class="toast-container"></div>
+
+        <!-- Active Provider Summary -->
+        <% if (selectedProvider && selectedProvider.isConfigured) { %>
+        <div class="card mb-4" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white;">
+          <div class="card-body d-flex justify-content-between align-items-center">
+            <div>
+              <div style="font-size: 12px; opacity: 0.8; text-transform: uppercase;">Currently Active Provider</div>
+              <div style="font-size: 20px; font-weight: bold;"><%= selectedProvider.name %></div>
+              <div style="font-size: 14px; opacity: 0.9;">Model: <%= selectedProvider.defaultModel || 'Default' %></div>
+            </div>
+            <div style="font-size: 48px; opacity: 0.3;">
+              <i class="bi bi-check-circle"></i>
+            </div>
+          </div>
+        </div>
+        <% } else { %>
+        <div class="alert alert-warning">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          <strong>No AI Provider Configured</strong> - Configure an API key below to enable AI features.
+        </div>
+        <% } %>
+
+        <!-- How Selection Works -->
+        <div class="card mb-4" style="background: #f0f9ff; border: 1px solid #bae6fd;">
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6 border-end">
+                <div style="font-weight: 600; color: #0369a1; margin-bottom: 5px;">
+                  <i class="bi bi-toggle-on"></i> Available Toggle
+                </div>
+                <div style="font-size: 13px; color: #475569;">
+                  Enable/disable providers you want to keep configured. Disabled providers won't appear as options.
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div style="font-weight: 600; color: #059669; margin-bottom: 5px;">
+                  <i class="bi bi-check-circle"></i> Select Button
+                </div>
+                <div style="font-size: 13px; color: #475569;">
+                  Choose which provider to use for AI responses. <strong>Only one provider can be active at a time.</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Provider Cards Grid -->
+        <div class="row g-4 mb-4">
+          <% if (providers && providers.length > 0) { %>
+            <% providers.forEach(provider => { %>
+            <div class="col-md-4">
+              <div class="card provider-card h-100 <%= !provider.isActive ? 'disabled' : '' %> <%= provider.isSelected ? 'selected' : '' %>"
+                   data-provider-id="<%= provider.id %>" data-provider-code="<%= provider.code %>">
+
+                <!-- Toggle Switch -->
+                <div class="position-absolute" style="top: 12px; right: 15px; display: flex; align-items: center; gap: 8px;">
+                  <span class="toggle-label" style="font-size: 11px; color: #6b7280; text-transform: uppercase;">
+                    <%= provider.isActive ? 'Available' : 'Disabled' %>
+                  </span>
+                  <label class="toggle-switch">
+                    <input type="checkbox" class="provider-toggle" data-provider-id="<%= provider.id %>"
+                           <%= provider.isActive ? 'checked' : '' %>>
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+
+                <!-- Selected Badge -->
+                <% if (provider.isSelected) { %>
+                <div class="position-absolute" style="top: 15px; left: 15px;">
+                  <span class="badge bg-success"><i class="bi bi-check"></i> Active</span>
+                </div>
+                <% } %>
+
+                <div class="card-body">
+                  <!-- Provider Header -->
+                  <div class="text-center pb-3 border-bottom mb-3" style="padding-top: 30px;">
+                    <div class="provider-icon" style="color: <%= provider.isConfigured ? '#10b981' : '#9ca3af' %>;">
+                      <% if (provider.code === 'openai') { %>
+                        <i class="bi bi-robot"></i>
+                      <% } else if (provider.code === 'anthropic') { %>
+                        <i class="bi bi-lightbulb"></i>
+                      <% } else if (provider.code === 'gemini') { %>
+                        <i class="bi bi-gem"></i>
+                      <% } else if (provider.code === 'deepseek') { %>
+                        <i class="bi bi-search"></i>
+                      <% } else if (provider.code === 'groq') { %>
+                        <i class="bi bi-lightning"></i>
+                      <% } else if (provider.code === 'mistral') { %>
+                        <i class="bi bi-wind"></i>
+                      <% } else if (provider.code === 'grok') { %>
+                        <i class="bi bi-x-lg"></i>
+                      <% } else if (provider.code === 'huggingface') { %>
+                        <i class="bi bi-emoji-smile"></i>
+                      <% } else { %>
+                        <i class="bi bi-cpu"></i>
+                      <% } %>
+                    </div>
+                    <h5 class="mb-1"><%= provider.name %></h5>
+                    <small class="text-muted"><%= provider.description %></small>
+                  </div>
+
+                  <!-- API Key Section -->
+                  <div class="mb-3">
+                    <label class="form-label small">
+                      <i class="bi bi-key"></i> API Key
+                      <% if (provider.isConfigured) { %>
+                        <span class="badge bg-success ms-1" style="font-size: 10px;">Configured</span>
+                      <% } else { %>
+                        <span class="badge bg-danger ms-1" style="font-size: 10px;">Not Set</span>
+                      <% } %>
+                    </label>
+                    <div class="input-group">
+                      <input type="password" class="form-control form-control-sm api-key-input"
+                             id="api-key-<%= provider.id %>"
+                             placeholder="<%= provider.isConfigured ? '****' + (provider.apiKey ? provider.apiKey.slice(-4) : '') : 'Enter API key...' %>"
+                             data-provider-id="<%= provider.id %>">
+                      <button class="btn btn-primary btn-sm save-api-key" data-provider-id="<%= provider.id %>"
+                              data-bs-toggle="tooltip" title="Save API Key">
+                        <i class="bi bi-save"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Model Selection -->
+                  <div class="mb-3">
+                    <label class="form-label small"><i class="bi bi-box"></i> Model</label>
+                    <select class="form-select form-select-sm model-select" data-provider-id="<%= provider.id %>">
+                      <% if (provider.availableModels && provider.availableModels.length > 0) { %>
+                        <% provider.availableModels.forEach(model => { %>
+                          <option value="<%= model.id %>"
+                                  <%= provider.defaultModel === model.id ? 'selected' : '' %>>
+                            <%= model.name %><%= model.recommended ? ' (Recommended)' : '' %>
+                          </option>
+                        <% }); %>
+                      <% } else { %>
+                        <option value="">No models available</option>
+                      <% } %>
+                    </select>
+                  </div>
+
+                  <!-- Advanced Settings -->
+                  <details class="mb-3">
+                    <summary style="cursor: pointer; font-size: 13px; color: #6b7280; margin-bottom: 10px;">
+                      <i class="bi bi-gear"></i> Advanced Settings
+                    </summary>
+
+                    <div class="mb-2">
+                      <label class="form-label small">Temperature: <span class="temp-value"><%= provider.temperature %></span></label>
+                      <input type="range" class="temperature-slider" data-provider-id="<%= provider.id %>"
+                             min="0" max="2" step="0.1" value="<%= provider.temperature %>">
+                    </div>
+
+                    <div class="mb-2">
+                      <label class="form-label small">Max Tokens</label>
+                      <input type="number" class="form-control form-control-sm max-tokens-input"
+                             data-provider-id="<%= provider.id %>"
+                             value="<%= provider.maxTokens %>" min="100" max="128000">
+                    </div>
+                  </details>
+
+                  <!-- Action Buttons -->
+                  <div class="d-flex gap-2 pt-3 border-top">
+                    <button class="btn btn-secondary btn-sm flex-grow-1 test-connection"
+                            data-provider-id="<%= provider.id %>"
+                            data-bs-toggle="tooltip" title="Test API Connection"
+                            <%= !provider.isConfigured ? 'disabled' : '' %>>
+                      <i class="bi bi-plug"></i> Test
+                    </button>
+                    <button class="btn <%= provider.isSelected ? 'btn-success' : 'btn-primary' %> btn-sm flex-grow-1 select-provider"
+                            data-provider-id="<%= provider.id %>"
+                            data-bs-toggle="tooltip" title="<%= provider.isSelected ? 'Currently Active' : 'Set as Active Provider' %>"
+                            <%= !provider.isConfigured ? 'disabled' : '' %>>
+                      <% if (provider.isSelected) { %>
+                        <i class="bi bi-check"></i> Selected
+                      <% } else { %>
+                        <i class="bi bi-check-circle"></i> Select
+                      <% } %>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <% }); %>
+          <% } else { %>
+            <div class="col-12">
+              <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>No AI providers configured. Run database seed to create default providers.
+              </div>
+            </div>
+          <% } %>
+        </div>
+
+        <!-- Info Cards -->
+        <div class="row g-4">
+          <div class="col-md-6">
+            <div class="card h-100">
+              <div class="card-header bg-light">
+                <i class="bi bi-info-circle me-2"></i>How It Works
+              </div>
+              <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                  <li class="list-group-item"><strong>1.</strong> Enter your API key for any provider</li>
+                  <li class="list-group-item"><strong>2.</strong> Select your preferred model</li>
+                  <li class="list-group-item"><strong>3.</strong> Click "Test" to verify the connection</li>
+                  <li class="list-group-item"><strong>4.</strong> Click "Select" to make it active</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-6">
+            <div class="card h-100">
+              <div class="card-header bg-light">
+                <i class="bi bi-link-45deg me-2"></i>Get API Keys
+              </div>
+              <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                  <li class="list-group-item">
+                    <a href="https://platform.openai.com/api-keys" target="_blank" class="text-decoration-none">
+                      <i class="bi bi-box-arrow-up-right me-2"></i>OpenAI API Keys
+                    </a>
+                  </li>
+                  <li class="list-group-item">
+                    <a href="https://console.anthropic.com/settings/keys" target="_blank" class="text-decoration-none">
+                      <i class="bi bi-box-arrow-up-right me-2"></i>Anthropic API Keys
+                    </a>
+                  </li>
+                  <li class="list-group-item">
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-decoration-none">
+                      <i class="bi bi-box-arrow-up-right me-2"></i>Google AI Studio Keys
+                    </a>
+                  </li>
+                  <li class="list-group-item">
+                    <a href="https://platform.deepseek.com/api_keys" target="_blank" class="text-decoration-none">
+                      <i class="bi bi-box-arrow-up-right me-2"></i>DeepSeek API Keys
+                    </a>
+                  </li>
+                  <li class="list-group-item">
+                    <a href="https://console.groq.com/keys" target="_blank" class="text-decoration-none">
+                      <i class="bi bi-box-arrow-up-right me-2"></i>Groq API Keys
+                    </a>
+                  </li>
+                  <li class="list-group-item">
+                    <a href="https://console.mistral.ai/api-keys/" target="_blank" class="text-decoration-none">
+                      <i class="bi bi-box-arrow-up-right me-2"></i>Mistral API Keys
+                    </a>
+                  </li>
+                  <li class="list-group-item">
+                    <a href="https://console.x.ai/" target="_blank" class="text-decoration-none">
+                      <i class="bi bi-box-arrow-up-right me-2"></i>xAI (Grok) API Keys
+                    </a>
+                  </li>
+                  <li class="list-group-item">
+                    <a href="https://huggingface.co/settings/tokens" target="_blank" class="text-decoration-none">
+                      <i class="bi bi-box-arrow-up-right me-2"></i>Hugging Face API Keys
+                    </a>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Note about Realtime API -->
+        <div class="alert alert-info mt-4">
+          <h6><i class="bi bi-info-circle me-2"></i>Note About Voice Chat</h6>
+          <p class="mb-0">This app uses <strong>OpenAI's Realtime API</strong> for voice conversations. Currently, only OpenAI supports real-time voice streaming. Other providers (Anthropic, Gemini, etc.) can be used for text-based AI features but not for live voice chat.</p>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Initialize tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (el) { return new bootstrap.Tooltip(el) });
+  </script>
+  <script>
+
+    function showToast(message, type = 'success') {
+      const container = document.querySelector('.toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast show align-items-center text-bg-${type} border-0`;
+      toast.innerHTML = `
+        <div class="d-flex">
+          <div class="toast-body">${message}</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+      `;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    // Save API Key
+    document.querySelectorAll('.save-api-key').forEach(btn => {
+      btn.addEventListener('click', async function() {
+        const providerId = this.dataset.providerId;
+        const input = document.getElementById('api-key-' + providerId);
+        const apiKey = input.value.trim();
+
+        if (!apiKey) {
+          showToast('Please enter an API key', 'danger');
+          return;
+        }
+
+        this.disabled = true;
+        this.innerHTML = '<i class="bi bi-arrow-repeat spin"></i>';
+
+        try {
+          const res = await fetch(`<%= basePath %>/admin/ai-providers/${providerId}/api-key`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: apiKey })
+          });
+          const data = await res.json();
+
+          if (data.success) {
+            input.value = '';
+            input.placeholder = data.masked_key || 'Key saved';
+            showToast('API key saved successfully');
+            setTimeout(() => location.reload(), 1000);
+          } else {
+            showToast(data.message || 'Failed to save API key', 'danger');
+          }
+        } catch (err) {
+          showToast('Error saving API key', 'danger');
+        } finally {
+          this.disabled = false;
+          this.innerHTML = '<i class="bi bi-save"></i>';
+        }
+      });
+    });
+
+    // Test Connection
+    document.querySelectorAll('.test-connection').forEach(btn => {
+      btn.addEventListener('click', async function() {
+        const providerId = this.dataset.providerId;
+
+        this.disabled = true;
+        this.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Testing...';
+
+        try {
+          const res = await fetch(`<%= basePath %>/admin/ai-providers/${providerId}/test`, {
+            method: 'POST'
+          });
+          const data = await res.json();
+
+          if (data.success) {
+            this.innerHTML = '<i class="bi bi-check"></i> Success';
+            this.classList.remove('btn-secondary');
+            this.classList.add('btn-success');
+            showToast('Connection successful');
+            setTimeout(() => {
+              this.innerHTML = '<i class="bi bi-plug"></i> Test';
+              this.classList.remove('btn-success');
+              this.classList.add('btn-secondary');
+            }, 3000);
+          } else {
+            showToast('Connection failed: ' + (data.message || 'Unknown error'), 'danger');
+            this.innerHTML = '<i class="bi bi-x"></i> Failed';
+            setTimeout(() => {
+              this.innerHTML = '<i class="bi bi-plug"></i> Test';
+            }, 3000);
+          }
+        } catch (err) {
+          showToast('Error testing connection', 'danger');
+        } finally {
+          this.disabled = false;
+        }
+      });
+    });
+
+    // Select Provider
+    document.querySelectorAll('.select-provider').forEach(btn => {
+      btn.addEventListener('click', async function() {
+        const providerId = this.dataset.providerId;
+        const modelSelect = document.querySelector(`.model-select[data-provider-id="${providerId}"]`);
+        const model = modelSelect ? modelSelect.value : null;
+
+        this.disabled = true;
+        this.innerHTML = '<i class="bi bi-arrow-repeat spin"></i>';
+
+        try {
+          const res = await fetch(`<%= basePath %>/admin/ai-providers/${providerId}/select`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ model })
+          });
+          const data = await res.json();
+
+          if (data.success) {
+            showToast('Provider selected');
+            location.reload();
+          } else {
+            showToast(data.message || 'Failed to select provider', 'danger');
+          }
+        } catch (err) {
+          showToast('Error selecting provider', 'danger');
+        } finally {
+          this.disabled = false;
+        }
+      });
+    });
+
+    // Provider Toggle
+    document.querySelectorAll('.provider-toggle').forEach(toggle => {
+      toggle.addEventListener('change', async function() {
+        const providerId = this.dataset.providerId;
+        const isActive = this.checked;
+        const card = this.closest('.provider-card');
+        const label = card.querySelector('.toggle-label');
+
+        if (!isActive) {
+          card.classList.add('disabled');
+          label.textContent = 'Disabled';
+        } else {
+          card.classList.remove('disabled');
+          label.textContent = 'Available';
+        }
+
+        await fetch(`<%= basePath %>/admin/ai-providers/${providerId}/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_active: isActive })
+        });
+      });
+    });
+
+    // Temperature Slider
+    document.querySelectorAll('.temperature-slider').forEach(slider => {
+      slider.addEventListener('input', function() {
+        const tempValue = this.closest('details').querySelector('.temp-value');
+        tempValue.textContent = this.value;
+      });
+
+      slider.addEventListener('change', async function() {
+        const providerId = this.dataset.providerId;
+        await fetch(`<%= basePath %>/admin/ai-providers/${providerId}/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ temperature: parseFloat(this.value) })
+        });
+        showToast('Temperature updated');
+      });
+    });
+
+    // Max Tokens
+    document.querySelectorAll('.max-tokens-input').forEach(input => {
+      input.addEventListener('change', async function() {
+        const providerId = this.dataset.providerId;
+        await fetch(`<%= basePath %>/admin/ai-providers/${providerId}/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ max_tokens: parseInt(this.value) })
+        });
+        showToast('Max tokens updated');
+      });
+    });
+
+    // Model Selection
+    document.querySelectorAll('.model-select').forEach(select => {
+      select.addEventListener('change', async function() {
+        const providerId = this.dataset.providerId;
+        await fetch(`<%= basePath %>/admin/ai-providers/${providerId}/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ default_model: this.value })
+        });
+        showToast('Model updated');
+      });
+    });
+  </script>
+  <style>
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    .spin {
+      animation: spin 1s linear infinite;
+    }
+  </style>
+</body>
+</html>

@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DTMF Menu - Sell Me a Pen Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    .sidebar { min-height: 100vh; background: #2c3e50; }
+    .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1rem; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+    .sidebar .nav-link i { margin-right: 0.5rem; }
+    .main-content { background: #f8f9fa; min-height: 100vh; }
+    .nav-divider { border-top: 1px solid rgba(255,255,255,0.2); margin: 0.5rem 0; }
+    .nav-section { color: rgba(255,255,255,0.5); font-size: 0.75rem; padding: 0.5rem 1rem; text-transform: uppercase; }
+    .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
+    .dtmf-key {
+      width: 60px; height: 60px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; font-weight: bold;
+      border-radius: 50%; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .dtmf-key:hover { transform: scale(1.1); }
+    .dtmf-key.configured { background: #198754; color: white; }
+    .dtmf-key.unconfigured { background: #e9ecef; color: #6c757d; }
+    .bulk-actions { display: none; background: #e3f2fd; padding: 0.75rem 1rem; border-radius: 8px; }
+    .bulk-actions.show { display: flex; }
+    .row-checkbox { cursor: pointer; }
+    tr.selected { background-color: #e3f2fd !important; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <%- include('_sidebar', { active: 'dtmf-menu' }) %>
+
+      <main class="col-md-10 ms-sm-auto main-content p-4">
+        <h2 class="mb-4"><i class="bi bi-grid-3x3 text-primary me-2"></i>DTMF Menu Configuration</h2>
+
+        <div class="toast-container"></div>
+
+        <!-- IVR Settings -->
+        <div class="card mb-4">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-mic me-2"></i>IVR Configuration</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-8">
+                <div class="mb-3">
+                  <label class="form-label">Welcome Message</label>
+                  <textarea class="form-control" id="welcomeMessage" rows="2" placeholder="Welcome to our sales training. Press 1 for practice, 2 for help..."><%= settings?.welcomeMessage || '' %></textarea>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="mb-3">
+                  <label class="form-label">Input Timeout (seconds)</label>
+                  <input type="number" class="form-control" id="inputTimeout" value="<%= settings?.inputTimeout || 5 %>" min="3" max="30">
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label">Invalid Input Message</label>
+                  <input type="text" class="form-control" id="invalidMessage" value="<%= settings?.invalidMessage || 'Invalid selection. Please try again.' %>">
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label class="form-label">Max Retries</label>
+                  <input type="number" class="form-control" id="maxRetries" value="<%= settings?.maxRetries || 3 %>" min="1" max="5">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- DTMF Keypad Visual -->
+        <div class="card mb-4">
+          <div class="card-header bg-dark text-white">
+            <h5 class="mb-0"><i class="bi bi-grid-3x3-gap me-2"></i>Keypad Configuration</h5>
+          </div>
+          <div class="card-body">
+            <p class="text-muted">Click a key to configure its action:</p>
+            <div class="d-flex justify-content-center mb-4">
+              <div class="text-center">
+                <div class="d-flex gap-3 mb-3 justify-content-center">
+                  <% ['1', '2', '3'].forEach(key => { %>
+                    <div class="dtmf-key <%= menuItems && menuItems[key] ? 'configured' : 'unconfigured' %>"
+                         onclick="editKey('<%= key %>')" data-bs-toggle="tooltip"
+                         title="<%= menuItems && menuItems[key] ? menuItems[key].label : 'Not configured' %>">
+                      <%= key %>
+                    </div>
+                  <% }) %>
+                </div>
+                <div class="d-flex gap-3 mb-3 justify-content-center">
+                  <% ['4', '5', '6'].forEach(key => { %>
+                    <div class="dtmf-key <%= menuItems && menuItems[key] ? 'configured' : 'unconfigured' %>"
+                         onclick="editKey('<%= key %>')" data-bs-toggle="tooltip"
+                         title="<%= menuItems && menuItems[key] ? menuItems[key].label : 'Not configured' %>">
+                      <%= key %>
+                    </div>
+                  <% }) %>
+                </div>
+                <div class="d-flex gap-3 mb-3 justify-content-center">
+                  <% ['7', '8', '9'].forEach(key => { %>
+                    <div class="dtmf-key <%= menuItems && menuItems[key] ? 'configured' : 'unconfigured' %>"
+                         onclick="editKey('<%= key %>')" data-bs-toggle="tooltip"
+                         title="<%= menuItems && menuItems[key] ? menuItems[key].label : 'Not configured' %>">
+                      <%= key %>
+                    </div>
+                  <% }) %>
+                </div>
+                <div class="d-flex gap-3 justify-content-center">
+                  <% ['*', '0', '#'].forEach(key => { %>
+                    <div class="dtmf-key <%= menuItems && menuItems[key] ? 'configured' : 'unconfigured' %>"
+                         onclick="editKey('<%= key %>')" data-bs-toggle="tooltip"
+                         title="<%= menuItems && menuItems[key] ? menuItems[key].label : 'Not configured' %>">
+                      <%= key %>
+                    </div>
+                  <% }) %>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bulk Actions Toolbar -->
+        <div class="bulk-actions mb-3 align-items-center justify-content-between" id="bulkActions">
+          <div>
+            <span class="me-3"><strong id="selectedCount">0</strong> selected</span>
+            <button class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="Delete selected keys" onclick="deleteSelected()">
+              <i class="bi bi-trash"></i> Delete Selected
+            </button>
+          </div>
+          <button class="btn btn-sm btn-link" onclick="clearSelection()" data-bs-toggle="tooltip" title="Clear all selections">Clear Selection</button>
+        </div>
+
+        <!-- Menu Items Table -->
+        <div class="card">
+          <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="bi bi-list-ol me-2"></i>Configured Menu Options</h5>
+          </div>
+          <div class="card-body p-0">
+            <table class="table table-hover mb-0" id="menuTable">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 40px;">
+                    <input type="checkbox" class="form-check-input" id="selectAll" data-bs-toggle="tooltip" title="Select all">
+                  </th>
+                  <th style="width: 80px;">Key</th>
+                  <th>Label</th>
+                  <th>Action</th>
+                  <th>Target</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="menuItemsTable">
+                <% if (menuItems && Object.keys(menuItems).length > 0) { %>
+                  <% Object.entries(menuItems).forEach(([key, item]) => { %>
+                    <tr data-key="<%= key %>">
+                      <td><input type="checkbox" class="form-check-input row-checkbox" value="<%= key %>"></td>
+                      <td><span class="badge bg-dark fs-5"><%= key %></span></td>
+                      <td><%= item.label %></td>
+                      <td><span class="badge bg-info"><%= item.action %></span></td>
+                      <td><code><%= item.target || '-' %></code></td>
+                      <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="editKey('<%= key %>')" data-bs-toggle="tooltip" title="Edit key action">
+                          <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteKey('<%= key %>')" data-bs-toggle="tooltip" title="Remove key action">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  <% }) %>
+                <% } else { %>
+                  <tr id="emptyRow">
+                    <td colspan="6" class="text-center text-muted py-4">
+                      No menu items configured. Click on a key above to add an action.
+                    </td>
+                  </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+          <!-- Pagination Footer -->
+          <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <div class="text-muted small">Showing <span id="showingStart">1</span>-<span id="showingEnd"><%= menuItems ? Math.min(10, Object.keys(menuItems).length) : 0 %></span> of <span id="totalRows"><%= menuItems ? Object.keys(menuItems).length : 0 %></span></div>
+            <nav>
+              <ul class="pagination pagination-sm mb-0" id="pagination">
+                <li class="page-item disabled" id="prevPage">
+                  <a class="page-link" href="#" onclick="changePage(-1); return false;"><i class="bi bi-chevron-left"></i></a>
+                </li>
+                <li class="page-item disabled" id="nextPage">
+                  <a class="page-link" href="#" onclick="changePage(1); return false;"><i class="bi bi-chevron-right"></i></a>
+                </li>
+              </ul>
+            </nav>
+            <select class="form-select form-select-sm" id="pageSize" style="width: auto;" data-bs-toggle="tooltip" title="Rows per page">
+              <option value="10">10 / page</option>
+              <option value="25">25 / page</option>
+              <option value="50">50 / page</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <button class="btn btn-primary" onclick="saveSettings()" data-bs-toggle="tooltip" title="Save DTMF configuration">
+            <i class="bi bi-save me-2"></i>Save All Settings
+          </button>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Edit Key Modal -->
+  <div class="modal fade" id="editKeyModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Configure Key <span id="modalKeyLabel" class="badge bg-dark"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="editingKey">
+          <div class="mb-3">
+            <label class="form-label">Label (announced to caller)</label>
+            <input type="text" class="form-control" id="keyLabel" placeholder="Start practice session">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Action</label>
+            <select class="form-select" id="keyAction">
+              <option value="start_session">Start Sales Session</option>
+              <option value="transfer">Transfer to Agent</option>
+              <option value="submenu">Go to Submenu</option>
+              <option value="play_message">Play Message</option>
+              <option value="repeat">Repeat Menu</option>
+              <option value="end_call">End Call</option>
+              <option value="voicemail">Leave Voicemail</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Target (phone number, submenu ID, or message)</label>
+            <input type="text" class="form-control" id="keyTarget" placeholder="+1234567890 or submenu_id">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="saveKey()">Save Key</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    let menuItems = <%- JSON.stringify(menuItems || {}) %>;
+    let editKeyModal;
+    let currentPage = 1;
+    let pageSize = 10;
+    let allRows = [];
+    let selectedRows = new Set();
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+      tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+      editKeyModal = new bootstrap.Modal(document.getElementById('editKeyModal'));
+
+      allRows = Array.from(document.querySelectorAll('#menuItemsTable tr:not(#emptyRow)'));
+      updatePagination();
+      initCheckboxes();
+    });
+
+    function initCheckboxes() {
+      const selectAll = document.getElementById('selectAll');
+      if (selectAll) {
+        selectAll.addEventListener('change', function() {
+          const checkboxes = document.querySelectorAll('.row-checkbox');
+          checkboxes.forEach(cb => {
+            cb.checked = this.checked;
+            const row = cb.closest('tr');
+            if (this.checked) {
+              selectedRows.add(cb.value);
+              row.classList.add('selected');
+            } else {
+              selectedRows.delete(cb.value);
+              row.classList.remove('selected');
+            }
+          });
+          updateBulkActions();
+        });
+      }
+
+      document.querySelectorAll('.row-checkbox').forEach(cb => {
+        cb.addEventListener('change', function() {
+          const row = this.closest('tr');
+          if (this.checked) {
+            selectedRows.add(this.value);
+            row.classList.add('selected');
+          } else {
+            selectedRows.delete(this.value);
+            row.classList.remove('selected');
+          }
+          updateBulkActions();
+        });
+      });
+    }
+
+    function updateBulkActions() {
+      const bulkActions = document.getElementById('bulkActions');
+      const selectedCount = document.getElementById('selectedCount');
+      selectedCount.textContent = selectedRows.size;
+      bulkActions.classList.toggle('show', selectedRows.size > 0);
+    }
+
+    function clearSelection() {
+      selectedRows.clear();
+      document.querySelectorAll('.row-checkbox').forEach(cb => {
+        cb.checked = false;
+        cb.closest('tr').classList.remove('selected');
+      });
+      document.getElementById('selectAll').checked = false;
+      updateBulkActions();
+    }
+
+    function updatePagination() {
+      const totalPages = Math.ceil(allRows.length / pageSize);
+      const start = (currentPage - 1) * pageSize;
+      const end = Math.min(start + pageSize, allRows.length);
+
+      allRows.forEach((row, idx) => {
+        row.style.display = (idx >= start && idx < end) ? '' : 'none';
+      });
+
+      document.getElementById('showingStart').textContent = allRows.length > 0 ? start + 1 : 0;
+      document.getElementById('showingEnd').textContent = end;
+      document.getElementById('totalRows').textContent = allRows.length;
+
+      document.getElementById('prevPage').classList.toggle('disabled', currentPage === 1);
+      document.getElementById('nextPage').classList.toggle('disabled', currentPage >= totalPages);
+
+      const pagination = document.getElementById('pagination');
+      const pageItems = pagination.querySelectorAll('.page-number');
+      pageItems.forEach(item => item.remove());
+
+      const nextPageLi = document.getElementById('nextPage');
+      for (let i = 1; i <= totalPages; i++) {
+        const li = document.createElement('li');
+        li.className = `page-item page-number ${i === currentPage ? 'active' : ''}`;
+        li.innerHTML = `<a class="page-link" href="#" onclick="goToPage(${i}); return false;">${i}</a>`;
+        pagination.insertBefore(li, nextPageLi);
+      }
+    }
+
+    function changePage(delta) {
+      const totalPages = Math.ceil(allRows.length / pageSize);
+      const newPage = currentPage + delta;
+      if (newPage >= 1 && newPage <= totalPages) {
+        currentPage = newPage;
+        updatePagination();
+      }
+    }
+
+    function goToPage(page) {
+      currentPage = page;
+      updatePagination();
+    }
+
+    document.getElementById('pageSize')?.addEventListener('change', function() {
+      pageSize = parseInt(this.value);
+      currentPage = 1;
+      updatePagination();
+    });
+
+    async function deleteSelected() {
+      if (selectedRows.size === 0) return;
+      if (!confirm(`Delete ${selectedRows.size} key(s)?`)) return;
+
+      for (const key of selectedRows) {
+        delete menuItems[key];
+      }
+      await saveSettings();
+      location.reload();
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.querySelector('.toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast show align-items-center text-bg-${type} border-0`;
+      toast.innerHTML = `<div class="d-flex"><div class="toast-body">${message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    function editKey(key) {
+      document.getElementById('editingKey').value = key;
+      document.getElementById('modalKeyLabel').textContent = key;
+
+      const item = menuItems[key] || {};
+      document.getElementById('keyLabel').value = item.label || '';
+      document.getElementById('keyAction').value = item.action || 'start_session';
+      document.getElementById('keyTarget').value = item.target || '';
+
+      editKeyModal.show();
+    }
+
+    function saveKey() {
+      const key = document.getElementById('editingKey').value;
+      menuItems[key] = {
+        label: document.getElementById('keyLabel').value,
+        action: document.getElementById('keyAction').value,
+        target: document.getElementById('keyTarget').value
+      };
+      editKeyModal.hide();
+      showToast(`Key ${key} configured! Don't forget to save all settings.`);
+      location.reload();
+    }
+
+    async function deleteKey(key) {
+      if (!confirm(`Remove action for key ${key}?`)) return;
+      delete menuItems[key];
+      await saveSettings();
+      location.reload();
+    }
+
+    async function saveSettings() {
+      try {
+        const res = await fetch(`/admin/dtmf-menu`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            welcomeMessage: document.getElementById('welcomeMessage').value,
+            inputTimeout: parseInt(document.getElementById('inputTimeout').value),
+            invalidMessage: document.getElementById('invalidMessage').value,
+            maxRetries: parseInt(document.getElementById('maxRetries').value),
+            menuItems
+          })
+        });
+        if (res.ok) showToast('DTMF settings saved!');
+        else showToast('Failed to save', 'danger');
+      } catch (err) {
+        showToast('Error saving', 'danger');
+      }
+    }
+  </script>
+</body>
+</html>
