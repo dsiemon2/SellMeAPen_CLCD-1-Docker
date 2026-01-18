@@ -29,14 +29,14 @@ AI sales training - classic "sell me this pen" exercise.
 
 | Service | Port | Description |
 |---------|------|-------------|
-| Nginx Proxy | 8080 | Main entry point |
+| Nginx Proxy | 8081 | Main entry point |
 | App Server | 3000 | Internal - Main application |
 | Admin Server | 3001 | Internal - Admin panel |
 
 ## Local Development URLs
 
-- **Landing Page:** http://localhost:8080/
-- **Admin Panel:** http://localhost:8080/admin?token=admin
+- **Landing Page:** http://localhost:8081/SellMeAPenExt/
+- **Admin Panel:** http://localhost:8081/SellMeAPenExt/admin?token=admin
 
 ## Docker Setup
 
