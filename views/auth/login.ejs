@@ -8,19 +8,6 @@
   ${typeof success !== 'undefined' && success ? '<div class="alert alert-success d-flex align-items-center"><i class="bi bi-check-circle me-2"></i>' + success + '</div>' : ''}
 </div>
 
-<!-- Demo Logins -->
-<div class="demo-logins">
-  <h6 class="mb-2"><i class="bi bi-key me-1"></i>Demo Accounts</h6>
-  <div class="d-flex flex-wrap gap-1">
-    <button type="button" class="btn btn-outline-secondary demo-login-btn" id="demoUserBtn" data-bs-toggle="tooltip" title="Regular user account">
-      <i class="bi bi-person"></i> Demo User
-    </button>
-    <button type="button" class="btn btn-outline-primary demo-login-btn" id="demoAdminBtn" data-bs-toggle="tooltip" title="Admin account (has admin access)">
-      <i class="bi bi-shield-lock"></i> Demo Admin
-    </button>
-  </div>
-</div>
-
 <form method="POST" action="/auth/login" id="loginForm">
   <input type="hidden" name="redirect" value="${typeof redirect !== 'undefined' ? redirect : '/chat'}">
 
@@ -68,12 +55,6 @@
   scripts: `
 <script>
   (function() {
-    function fillLogin(email, password) {
-      document.getElementById('email').value = email;
-      document.getElementById('password').value = password;
-      showAlert('Credentials filled! Click Sign In to continue.', 'info');
-    }
-
     function togglePassword() {
       var field = document.getElementById('password');
       var icon = document.getElementById('passwordToggleIcon');
@@ -86,22 +67,7 @@
       }
     }
 
-    function showAlert(message, type) {
-      type = type || 'danger';
-      var container = document.getElementById('alertContainer');
-      container.innerHTML = '<div class="alert alert-' + type + ' alert-dismissible fade show" role="alert">' +
-        message +
-        '<button type="button" class="btn-close" data-bs-dismiss="alert"></button>' +
-        '</div>';
-    }
-
     document.addEventListener('DOMContentLoaded', function() {
-      document.getElementById('demoUserBtn').addEventListener('click', function() {
-        fillLogin('user@demo.com', 'demo123');
-      });
-      document.getElementById('demoAdminBtn').addEventListener('click', function() {
-        fillLogin('admin@demo.com', 'admin123');
-      });
       document.getElementById('passwordToggle').addEventListener('click', function() {
         togglePassword();
       });
