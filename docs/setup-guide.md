@@ -134,18 +134,33 @@ npm run start:admin
 
 ## Database Management
 
+The application uses PostgreSQL as its database.
+
 ```bash
 # View database in browser
 npx prisma studio
 
-# Reset database (deletes all data!)
-rm prisma/dev.db
-npx prisma db push
+# Reset database (Docker - deletes all data!)
+docker compose down -v
+docker compose up -d
+
+# Reset database (local development)
+npx prisma db push --force-reset
 npx prisma db seed
 
 # Run migrations (if schema changed)
 npx prisma migrate dev
+
+# Connect to PostgreSQL directly (Docker)
+docker exec -it sellmeapenext_postgres psql -U sellmeapen -d sellmeapen_db
 ```
+
+### PostgreSQL Connection Details (Docker)
+- **Host:** localhost
+- **Port:** 5437
+- **Database:** sellmeapen_db
+- **User:** sellmeapen
+- **Password:** sellmeapen_password
 
 ## Customization Tips
 

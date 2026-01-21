@@ -36,7 +36,18 @@ docker compose up -d
 
 ---
 
-## Database Schema
+## Database
+
+**Database:** PostgreSQL 15 (via Docker)
+**ORM:** Prisma
+
+### Connection Details (Docker)
+| Property | Value |
+|----------|-------|
+| Host | localhost |
+| Port | 5437 |
+| Database | sellmeapen_db |
+| User | sellmeapen |
 
 ### Key Models
 - `Session` - Sales practice sessions
