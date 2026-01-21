@@ -9,7 +9,7 @@ version: "3.9"
 #   - http://localhost:8081/SellMeAPenExt/ws/chat    -> WebSocket endpoint
 #
 # All internal services are NOT exposed to the host.
-# Only nginx (port 8081) is accessible from outside.
+# Only nginx (port 8081) and PostgreSQL (port 5437) are accessible from outside.
 # =====================================================
 
 networks:
@@ -17,10 +17,33 @@ networks:
     driver: bridge
 
 volumes:
-  app_data_ext:
-    name: sellmeapenext_data
+  postgres_data_ext:
+    name: sellmeapenext_postgres
 
 services:
+  # ===========================================
+  # POSTGRESQL - Database (Exposed for debugging)
+  # ===========================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: sellmeapenext_postgres
+    ports:
+      - "5437:5432"
+    environment:
+      - POSTGRES_USER=sellmeapen
+      - POSTGRES_PASSWORD=sellmeapen_password
+      - POSTGRES_DB=sellmeapen_db
+    volumes:
+      - postgres_data_ext:/var/lib/postgresql/data
+    networks:
+      - sellmeapenext_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sellmeapen -d sellmeapen_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # ===========================================
   # NGINX - Reverse Proxy (ONLY EXPOSED PORT)
   # ===========================================
@@ -52,11 +75,12 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - DATABASE_URL=file:/app/data/app.db
+      - DATABASE_URL=postgresql://sellmeapen:sellmeapen_password@postgres:5432/sellmeapen_db
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - DEFAULT_VOICE=${DEFAULT_VOICE:-alloy}
-    volumes:
-      - app_data_ext:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - sellmeapenext_net
     restart: unless-stopped
@@ -80,11 +104,12 @@ services:
     environment:
       - NODE_ENV=production
       - ADMIN_PORT=3001
-      - DATABASE_URL=file:/app/data/app.db
+      - DATABASE_URL=postgresql://sellmeapen:sellmeapen_password@postgres:5432/sellmeapen_db
       - ADMIN_TOKEN=${ADMIN_TOKEN:-admin}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-    volumes:
-      - app_data_ext:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - sellmeapenext_net
     restart: unless-stopped

@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 ## Tech Stack
 - Backend: Node.js + Express + TypeScript
-- Database: Prisma + SQLite
+- Database: Prisma + PostgreSQL
 - Frontend: EJS templates + Bootstrap 5 + Bootstrap Icons
 - Real-time: WebSockets (OpenAI Realtime API)
 

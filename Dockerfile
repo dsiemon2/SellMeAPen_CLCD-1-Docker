@@ -1,7 +1,7 @@
 # ================================
 # Stage 1: Build
 # ================================
-FROM node:20-alpine3.18 AS builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
@@ -21,10 +21,10 @@ RUN npm run build
 # ================================
 # Stage 2: Production
 # ================================
-FROM node:20-alpine3.18 AS production
+FROM node:20-slim AS production
 
-# Install OpenSSL for Prisma (Alpine 3.18 has OpenSSL 1.1)
-RUN apk update && apk add --no-cache openssl
+# Install OpenSSL for Prisma, wget for health checks, and PostgreSQL client
+RUN apt-get update && apt-get install -y openssl wget postgresql-client python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -47,14 +47,10 @@ COPY public ./public
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Create data directory for SQLite
-RUN mkdir -p /app/data
-
 # Set environment defaults
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV ADMIN_PORT=3001
-ENV DATABASE_URL="file:/app/data/app.db"
 
 # Expose ports (internal only - nginx will proxy)
 EXPOSE 3000
