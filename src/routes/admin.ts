@@ -152,19 +152,21 @@ router.post('/login', adminLoginLimiter, async (req: Request, res: Response) => 
 
 // Admin logout
 router.get('/logout', async (req: Request, res: Response) => {
+  const basePath = res.locals.basePath || '';
   if (req.sessionToken) {
     await destroySession(req.sessionToken);
   }
   res.clearCookie('session_token');
-  res.redirect('/admin/login?success=logged_out');
+  res.redirect(basePath + '/admin/login?success=logged_out');
 });
 
 router.post('/logout', async (req: Request, res: Response) => {
+  const basePath = res.locals.basePath || '';
   if (req.sessionToken) {
     await destroySession(req.sessionToken);
   }
   res.clearCookie('session_token');
-  res.redirect('/admin/login');
+  res.redirect(basePath + '/admin/login');
 });
 
 // Apply admin auth to all routes below

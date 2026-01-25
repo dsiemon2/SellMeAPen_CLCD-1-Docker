@@ -52,7 +52,10 @@
       "Bash(docker exec:*)",
       "Bash(npx tsc:*)",
       "Bash(echo:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nRelease v1.1.0 - Gamification, CRM, Scenarios, Speech Analytics\n\nFeatures:\n- Gamification: Points, levels, streaks, 15 achievements, leaderboards\n- CRM Integrations: Salesforce & HubSpot OAuth with field mapping\n- Scenario Library: 25 pre-built training scenarios\n- Speech Analytics: WPM, filler words, clarity/confidence scoring\n- Admin UX: Sidebar scroll persistence, streamlined navigation\n\nSample Data:\n- 5 AI Agents, 5 Logic Rules, 3 Custom Functions\n- 10 Sample Sessions with analytics\n- Demo user gamification data\n\nFixes:\n- Nginx redirect preserves port number\n- Trust proxy for rate limiting behind nginx\n- Seed file model name corrections\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

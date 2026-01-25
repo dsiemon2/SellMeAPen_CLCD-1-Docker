@@ -56,6 +56,12 @@
     <li class="nav-item"><a class="nav-link <%= active === 'audit-logs' ? 'active' : '' %>" href="<%= basePath %>/admin/audit-logs"><i class="bi bi-journal-text"></i> Audit Logs</a></li>
     <li class="nav-item"><a class="nav-link <%= active === 'settings' ? 'active' : '' %>" href="<%= basePath %>/admin/settings"><i class="bi bi-gear"></i> Settings</a></li>
     <li class="nav-item"><a class="nav-link <%= active === 'features' ? 'active' : '' %>" href="<%= basePath %>/admin/features"><i class="bi bi-toggles"></i> Features</a></li>
+    <div class="nav-divider"></div>
+    <li class="nav-item">
+      <a class="nav-link text-danger" href="<%= basePath %>/admin/logout">
+        <i class="bi bi-box-arrow-left"></i> Logout
+      </a>
+    </li>
   </ul>
 </nav>
 <script>

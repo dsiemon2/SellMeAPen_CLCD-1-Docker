@@ -24,6 +24,12 @@ import { encrypt, decrypt } from '../utils/encryption.js';
 
 const router = Router();
 
+// Add basePath to all responses
+router.use((req, res, next) => {
+  res.locals.basePath = req.headers['x-forwarded-prefix'] as string || '';
+  next();
+});
+
 // Rate limiting for login attempts
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -32,20 +38,24 @@ const loginLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
+    const basePath = res.locals.basePath || '';
     res.render('auth/login', {
       title: 'Login',
       error: 'Too many login attempts. Please try again after 15 minutes.',
       email: req.body?.email || '',
-      redirect: req.body?.redirect || '/chat'
+      redirect: req.body?.redirect || (basePath + '/chat'),
+      basePath
     });
   }
 });
 
 // Login page
 router.get('/login', (req: Request, res: Response) => {
+  const basePath = res.locals.basePath || '';
+
   // If already logged in, redirect to chat
   if (req.user) {
-    return res.redirect('/chat');
+    return res.redirect(basePath + '/chat');
   }
 
   res.render('auth/login', {
@@ -53,12 +63,16 @@ router.get('/login', (req: Request, res: Response) => {
     error: req.query.error || null,
     success: req.query.success || null,
     email: req.query.email || '',
-    redirect: req.query.redirect || '/chat'
+    redirect: req.query.redirect || (basePath + '/chat'),
+    basePath
   });
 });
 
 // Login POST (with rate limiting)
 router.post('/login', loginLimiter, async (req: Request, res: Response) => {
+  const basePath = res.locals.basePath || '';
+  const defaultRedirect = basePath + '/chat';
+
   try {
     const { email, password, redirect, remember } = req.body;
 
@@ -67,7 +81,8 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
         title: 'Login',
         error: 'Email and password are required',
         email,
-        redirect: redirect || '/chat'
+        redirect: redirect || defaultRedirect,
+        basePath
       });
     }
 
@@ -84,7 +99,8 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
         title: 'Login',
         error: 'Invalid email or password',
         email,
-        redirect: redirect || '/chat'
+        redirect: redirect || defaultRedirect,
+        basePath
       });
     }
 
@@ -93,7 +109,8 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
         title: 'Login',
         error: 'Your account has been deactivated',
         email,
-        redirect: redirect || '/chat'
+        redirect: redirect || defaultRedirect,
+        basePath
       });
     }
 
@@ -114,9 +131,10 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
       return res.render('auth/mfa_verify', {
         title: 'Two-Factor Authentication',
         mfaToken,
-        redirect: redirect || '/chat',
+        redirect: redirect || defaultRedirect,
         remember: remember === 'on' ? 'on' : '',
-        error: null
+        error: null,
+        basePath
       });
     }
 
@@ -138,33 +156,36 @@ router.post('/login', loginLimiter, async (req: Request, res: Response) => {
     });
 
     // Redirect
-    res.redirect(redirect || '/chat');
+    res.redirect(redirect || defaultRedirect);
   } catch (error) {
     console.error('Login error:', error);
     res.render('auth/login', {
       title: 'Login',
       error: 'An error occurred. Please try again.',
       email: req.body.email,
-      redirect: req.body.redirect || '/chat'
+      redirect: req.body.redirect || defaultRedirect,
+      basePath
     });
   }
 });
 
 // Logout
 router.get('/logout', async (req: Request, res: Response) => {
+  const basePath = res.locals.basePath || '';
   if (req.sessionToken) {
     await destroySession(req.sessionToken);
   }
   res.clearCookie('session_token');
-  res.redirect('/?success=logged_out');
+  res.redirect(basePath + '/?success=logged_out');
 });
 
 router.post('/logout', async (req: Request, res: Response) => {
+  const basePath = res.locals.basePath || '';
   if (req.sessionToken) {
     await destroySession(req.sessionToken);
   }
   res.clearCookie('session_token');
-  res.redirect('/');
+  res.redirect(basePath + '/');
 });
 
 // =============================================
