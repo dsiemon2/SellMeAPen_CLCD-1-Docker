@@ -109,6 +109,8 @@ jobs:
 
   #-----------------------------------------
   # JOB 4: Deploy to Production (only on push to main, not PRs)
+  # Requires secrets: SERVER_HOST, SERVER_USER, SSH_PRIVATE_KEY
+  # Skip this job if secrets are not configured
   #-----------------------------------------
   deploy:
     name: Deploy to Production
@@ -117,7 +119,18 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
     steps:
+      - name: Check deployment secrets
+        id: check-secrets
+        run: |
+          if [ -z "${{ secrets.SERVER_HOST }}" ]; then
+            echo "⚠️ Deployment skipped: SERVER_HOST secret not configured"
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Deploy to server
+        if: steps.check-secrets.outputs.skip != 'true'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -130,7 +143,9 @@ jobs:
       - name: Notify deployment status
         if: always()
         run: |
-          if [ "${{ job.status }}" == "success" ]; then
+          if [ "${{ steps.check-secrets.outputs.skip }}" == "true" ]; then
+            echo "⚠️ Deployment skipped - no server configured"
+          elif [ "${{ job.status }}" == "success" ]; then
             echo "✅ Deployment successful!"
           else
             echo "❌ Deployment failed!"
