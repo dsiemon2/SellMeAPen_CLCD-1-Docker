@@ -19,7 +19,7 @@ Container:   Docker + Docker Compose
 
 - `src/routes/` - Admin and training routes
 - `prisma/schema.prisma` - Training schema
-- Alternative version/branch of SellMeAPen_CLCD
+- Alternative version/branch of SellMeAPen_CLCD-1-Docker
 
 ## Key Features
 
@@ -30,7 +30,7 @@ Container:   Docker + Docker Compose
 
 ## Recommended Agents
 
-*Same as SellMeAPen_CLCD-Docker*
+*Same as SellMeAPen_CLCD-1-Docker*
 
 ### MUST IMPLEMENT (Priority 1)
 
@@ -101,7 +101,7 @@ Add these when the project is ready for public release/marketing:
 
 ## Note
 
-This project appears to be a variant or experimental branch of SellMeAPen_CLCD. Consider:
+This project appears to be a variant or experimental branch of SellMeAPen_CLCD-1-Docker. Consider:
 1. Consolidating with the main project if differences are minimal
 2. Documenting what makes this version different
 3. Using feature flags instead of separate projects

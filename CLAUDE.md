@@ -132,7 +132,7 @@ When working on this project, apply these specialized behaviors:
 
 ### Backend Architect
 - Design Express routes for training sessions and scoring
-- Implement variant features from main SellMeAPen_CLCD
+- Implement variant features from main SellMeAPen_CLCD-1-Docker
 - Structure evaluation and feedback systems
 - Handle real-time voice session management
 
@@ -174,7 +174,7 @@ When working on this project, apply these specialized behaviors:
 
 ## Note
 
-This is a variant of SellMeAPen_CLCD. Consider:
+This is a variant of SellMeAPen_CLCD-1-Docker. Consider:
 1. Documenting specific differences from main version
 2. Using feature flags instead of separate projects
 3. Consolidating if differences are minimal
