@@ -1,5 +1,3 @@
-version: "3.9"
-
 # =====================================================
 # SellMeAPen Ext Docker Configuration
 #
@@ -78,6 +76,8 @@ services:
       - DATABASE_URL=postgresql://sellmeapen:sellmeapen_password@postgres:5432/sellmeapen_db
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - DEFAULT_VOICE=${DEFAULT_VOICE:-alloy}
+      - SESSION_SECRET=${SESSION_SECRET:-sellmeapen-session-secret-change-in-production}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-0591df20ed9f85b264dc490f78933b0955e46b71bd6ce5c2fdf93776fb82fa73}
     depends_on:
       postgres:
         condition: service_healthy
@@ -107,6 +107,8 @@ services:
       - DATABASE_URL=postgresql://sellmeapen:sellmeapen_password@postgres:5432/sellmeapen_db
       - ADMIN_TOKEN=${ADMIN_TOKEN:-admin}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SESSION_SECRET=${SESSION_SECRET:-sellmeapen-session-secret-change-in-production}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-0591df20ed9f85b264dc490f78933b0955e46b71bd6ce5c2fdf93776fb82fa73}
     depends_on:
       postgres:
         condition: service_healthy

@@ -1,9 +1,11 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { prisma } from '../db/prisma.js';
 import pino from 'pino';
+import rateLimit from 'express-rate-limit';
 import {
   hashPassword,
   verifyPassword,
+  isLegacyHash,
   createSession,
   destroySession,
   requireAdmin
@@ -11,6 +13,25 @@ import {
 
 const router = Router();
 const logger = pino();
+
+// Rate limiting for admin login attempts
+const adminLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 attempts per window
+  message: 'Too many login attempts, please try again after 15 minutes',
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    const basePath = res.locals.basePath || '';
+    res.render('admin/login', {
+      title: 'Admin Login',
+      error: 'Too many login attempts. Please try again after 15 minutes.',
+      email: req.body?.email || '',
+      redirect: req.body?.redirect || (basePath + '/admin'),
+      basePath
+    });
+  }
+});
 
 // Helper function to get branding
 async function getBranding() {
@@ -44,8 +65,8 @@ router.get('/login', (req: Request, res: Response) => {
   });
 });
 
-// Admin login POST
-router.post('/login', async (req: Request, res: Response) => {
+// Admin login POST (with rate limiting)
+router.post('/login', adminLoginLimiter, async (req: Request, res: Response) => {
   try {
     const basePath = res.locals.basePath || '';
     const { email, password, redirect, remember } = req.body;
@@ -65,7 +86,10 @@ router.post('/login', async (req: Request, res: Response) => {
       where: { email: email.toLowerCase() }
     });
 
-    if (!user || !verifyPassword(password, user.passwordHash)) {
+    // Verify password (now async)
+    const passwordValid = user ? await verifyPassword(password, user.passwordHash) : false;
+
+    if (!user || !passwordValid) {
       return res.render('admin/login', {
         title: 'Admin Login',
         error: 'Invalid email or password',
@@ -93,6 +117,16 @@ router.post('/login', async (req: Request, res: Response) => {
         redirect: redirect || defaultRedirect,
         basePath
       });
+    }
+
+    // Upgrade legacy SHA256 hash to bcrypt on successful login
+    if (isLegacyHash(user.passwordHash)) {
+      const newHash = await hashPassword(password);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: newHash }
+      });
+      logger.info(`Upgraded password hash for admin user: ${user.email}`);
     }
 
     const token = await createSession(user.id, remember === 'on');
@@ -225,6 +259,27 @@ router.get('/sessions/:sessionId', async (req, res) => {
   }
 });
 
+// Delete Session
+router.delete('/sessions/:sessionId', async (req, res) => {
+  try {
+    // First delete related records (messages, analytics)
+    await prisma.message.deleteMany({
+      where: { session: { sessionId: req.params.sessionId } }
+    });
+    await prisma.sessionAnalytics.deleteMany({
+      where: { session: { sessionId: req.params.sessionId } }
+    });
+    // Then delete the session
+    await prisma.salesSession.delete({
+      where: { sessionId: req.params.sessionId }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Session delete error');
+    res.status(500).json({ success: false, error: 'Failed to delete session' });
+  }
+});
+
 // Greeting Configuration
 router.get('/greeting', async (req, res) => {
   try {
@@ -334,6 +389,46 @@ router.post('/techniques/:id/toggle', async (req, res) => {
   }
 });
 
+// Create technique
+router.post('/techniques', async (req, res) => {
+  try {
+    const { name, category, description, script } = req.body;
+    await prisma.salesTechnique.create({
+      data: { name, category, description, script }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Create technique error');
+    res.status(500).json({ success: false, error: 'Failed to create technique' });
+  }
+});
+
+// Update technique
+router.put('/techniques/:id', async (req, res) => {
+  try {
+    const { name, category, description, script } = req.body;
+    await prisma.salesTechnique.update({
+      where: { id: req.params.id },
+      data: { name, category, description, script }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Update technique error');
+    res.status(500).json({ success: false, error: 'Failed to update technique' });
+  }
+});
+
+// Delete technique
+router.delete('/techniques/:id', async (req, res) => {
+  try {
+    await prisma.salesTechnique.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Delete technique error');
+    res.status(500).json({ success: false });
+  }
+});
+
 // Discovery Questions
 router.get('/discovery', async (req, res) => {
   try {
@@ -393,6 +488,63 @@ router.get('/closing', async (req, res) => {
   }
 });
 
+// Create closing strategy
+router.post('/closing', async (req, res) => {
+  try {
+    const { name, type, script, useWhen } = req.body;
+    await prisma.closingStrategy.create({
+      data: { name, type, script, useWhen }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Create closing strategy error');
+    res.status(500).json({ success: false, error: 'Failed to create closing strategy' });
+  }
+});
+
+// Update closing strategy
+router.put('/closing/:id', async (req, res) => {
+  try {
+    const { name, type, script, useWhen } = req.body;
+    await prisma.closingStrategy.update({
+      where: { id: req.params.id },
+      data: { name, type, script, useWhen }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Update closing strategy error');
+    res.status(500).json({ success: false, error: 'Failed to update closing strategy' });
+  }
+});
+
+// Toggle closing strategy
+router.post('/closing/:id/toggle', async (req, res) => {
+  try {
+    const strategy = await prisma.closingStrategy.findUnique({ where: { id: req.params.id } });
+    if (strategy) {
+      await prisma.closingStrategy.update({
+        where: { id: req.params.id },
+        data: { enabled: !strategy.enabled }
+      });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Toggle closing strategy error');
+    res.status(500).json({ success: false });
+  }
+});
+
+// Delete closing strategy
+router.delete('/closing/:id', async (req, res) => {
+  try {
+    await prisma.closingStrategy.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Delete closing strategy error');
+    res.status(500).json({ success: false });
+  }
+});
+
 // Objection Handlers
 router.get('/objections', async (req, res) => {
   try {
@@ -409,6 +561,63 @@ router.get('/objections', async (req, res) => {
     });
   } catch (err) {
     res.render('admin/error', { error: 'Failed to load objection handlers', user: req.user });
+  }
+});
+
+// Create objection handler
+router.post('/objections', async (req, res) => {
+  try {
+    const { objection, category, response, technique } = req.body;
+    await prisma.objectionHandler.create({
+      data: { objection, category, response, technique }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Create objection handler error');
+    res.status(500).json({ success: false, error: 'Failed to create objection handler' });
+  }
+});
+
+// Update objection handler
+router.put('/objections/:id', async (req, res) => {
+  try {
+    const { objection, category, response, technique } = req.body;
+    await prisma.objectionHandler.update({
+      where: { id: req.params.id },
+      data: { objection, category, response, technique }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Update objection handler error');
+    res.status(500).json({ success: false, error: 'Failed to update objection handler' });
+  }
+});
+
+// Toggle objection handler
+router.post('/objections/:id/toggle', async (req, res) => {
+  try {
+    const handler = await prisma.objectionHandler.findUnique({ where: { id: req.params.id } });
+    if (handler) {
+      await prisma.objectionHandler.update({
+        where: { id: req.params.id },
+        data: { enabled: !handler.enabled }
+      });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Toggle objection handler error');
+    res.status(500).json({ success: false });
+  }
+});
+
+// Delete objection handler
+router.delete('/objections/:id', async (req, res) => {
+  try {
+    await prisma.objectionHandler.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Delete objection handler error');
+    res.status(500).json({ success: false });
   }
 });
 
@@ -1810,6 +2019,927 @@ router.delete('/knowledge-base/:id', async (req, res) => {
   } catch (err) {
     logger.error({ err }, 'Delete document error');
     res.status(500).json({ success: false });
+  }
+});
+
+// ============================================
+// Positioning Angles
+// ============================================
+
+router.get('/positioning', async (req, res) => {
+  try {
+    const branding = await getBranding();
+    const angles = await prisma.positioningAngle.findMany({
+      orderBy: { userNeed: 'asc' }
+    });
+    res.render('admin/positioning', {
+      user: req.user,
+      active: 'positioning',
+      basePath: res.locals.basePath,
+      branding,
+      angles
+    });
+  } catch (err) {
+    logger.error({ err }, 'Positioning angles page error');
+    res.render('admin/error', { error: 'Failed to load positioning angles', user: req.user });
+  }
+});
+
+router.post('/positioning', async (req, res) => {
+  try {
+    const { userNeed, headline, pitch, emotionalHook } = req.body;
+    await prisma.positioningAngle.create({
+      data: { userNeed, headline, pitch, emotionalHook }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Create positioning angle error');
+    res.status(500).json({ success: false, error: 'Failed to create positioning angle' });
+  }
+});
+
+router.put('/positioning/:id', async (req, res) => {
+  try {
+    const { userNeed, headline, pitch, emotionalHook } = req.body;
+    await prisma.positioningAngle.update({
+      where: { id: req.params.id },
+      data: { userNeed, headline, pitch, emotionalHook }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Update positioning angle error');
+    res.status(500).json({ success: false, error: 'Failed to update positioning angle' });
+  }
+});
+
+router.post('/positioning/:id/toggle', async (req, res) => {
+  try {
+    const angle = await prisma.positioningAngle.findUnique({ where: { id: req.params.id } });
+    if (angle) {
+      await prisma.positioningAngle.update({
+        where: { id: req.params.id },
+        data: { enabled: !angle.enabled }
+      });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Toggle positioning angle error');
+    res.status(500).json({ success: false });
+  }
+});
+
+router.delete('/positioning/:id', async (req, res) => {
+  try {
+    await prisma.positioningAngle.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Delete positioning angle error');
+    res.status(500).json({ success: false });
+  }
+});
+
+// ============================================
+// User Management
+// ============================================
+
+router.get('/users', async (req, res) => {
+  try {
+    const branding = await getBranding();
+    const users = await prisma.user.findMany({
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        lastLoginAt: true,
+        createdAt: true,
+        _count: { select: { salesSessions: true } }
+      }
+    });
+    res.render('admin/users', {
+      user: req.user,
+      active: 'users',
+      basePath: res.locals.basePath,
+      branding,
+      users
+    });
+  } catch (err) {
+    logger.error({ err }, 'Users page error');
+    res.render('admin/error', { error: 'Failed to load users', user: req.user });
+  }
+});
+
+router.post('/users', async (req, res) => {
+  try {
+    const { email, name, password, role } = req.body;
+
+    // Check if email already exists
+    const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+    if (existing) {
+      return res.status(400).json({ success: false, error: 'Email already exists' });
+    }
+
+    const hashedPassword = await hashPassword(password);
+    await prisma.user.create({
+      data: {
+        email: email.toLowerCase(),
+        name,
+        passwordHash: hashedPassword,
+        role: role || 'user'
+      }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Create user error');
+    res.status(500).json({ success: false, error: 'Failed to create user' });
+  }
+});
+
+router.put('/users/:id', async (req, res) => {
+  try {
+    const { email, name, role, isActive } = req.body;
+
+    // Check if email is taken by another user
+    if (email) {
+      const existing = await prisma.user.findFirst({
+        where: { email: email.toLowerCase(), NOT: { id: req.params.id } }
+      });
+      if (existing) {
+        return res.status(400).json({ success: false, error: 'Email already in use' });
+      }
+    }
+
+    await prisma.user.update({
+      where: { id: req.params.id },
+      data: {
+        ...(email ? { email: email.toLowerCase() } : {}),
+        ...(name ? { name } : {}),
+        ...(role ? { role } : {}),
+        ...(typeof isActive === 'boolean' ? { isActive } : {})
+      }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Update user error');
+    res.status(500).json({ success: false, error: 'Failed to update user' });
+  }
+});
+
+router.post('/users/:id/reset-password', async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password || password.length < 8) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
+    }
+
+    const hashedPassword = await hashPassword(password);
+    await prisma.user.update({
+      where: { id: req.params.id },
+      data: { passwordHash: hashedPassword }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Reset password error');
+    res.status(500).json({ success: false, error: 'Failed to reset password' });
+  }
+});
+
+router.post('/users/:id/toggle', async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+    if (user) {
+      // Don't allow deactivating yourself
+      if (user.id === req.user?.id) {
+        return res.status(400).json({ success: false, error: 'Cannot deactivate your own account' });
+      }
+      await prisma.user.update({
+        where: { id: req.params.id },
+        data: { isActive: !user.isActive }
+      });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Toggle user error');
+    res.status(500).json({ success: false });
+  }
+});
+
+router.delete('/users/:id', async (req, res) => {
+  try {
+    // Don't allow deleting yourself
+    if (req.params.id === req.user?.id) {
+      return res.status(400).json({ success: false, error: 'Cannot delete your own account' });
+    }
+
+    // Delete user sessions first
+    await prisma.userSession.deleteMany({ where: { userId: req.params.id } });
+
+    // Delete user (cascade will handle related records)
+    await prisma.user.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Delete user error');
+    res.status(500).json({ success: false });
+  }
+});
+
+// ============================================
+// Audit Logs
+// ============================================
+
+router.get('/audit-logs', async (req, res) => {
+  try {
+    const branding = await getBranding();
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = (page - 1) * limit;
+
+    const [logs, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit
+      }),
+      prisma.auditLog.count()
+    ]);
+
+    res.render('admin/audit_logs', {
+      user: req.user,
+      active: 'audit-logs',
+      basePath: res.locals.basePath,
+      branding,
+      logs,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (err) {
+    logger.error({ err }, 'Audit logs page error');
+    res.render('admin/error', { error: 'Failed to load audit logs', user: req.user });
+  }
+});
+
+router.get('/audit-logs/api', async (req, res) => {
+  try {
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const action = req.query.action as string;
+    const resource = req.query.resource as string;
+    const userId = req.query.userId as string;
+    const offset = (page - 1) * limit;
+
+    const where: any = {};
+    if (action) where.action = action;
+    if (resource) where.resource = resource;
+    if (userId) where.userId = userId;
+
+    const [logs, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit
+      }),
+      prisma.auditLog.count({ where })
+    ]);
+
+    res.json({
+      success: true,
+      logs,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (err) {
+    logger.error({ err }, 'Audit logs API error');
+    res.status(500).json({ success: false, error: 'Failed to fetch audit logs' });
+  }
+});
+
+// ============================================
+// GAMIFICATION
+// ============================================
+
+router.get('/gamification', async (req, res) => {
+  try {
+    const branding = await getBranding();
+    let settings = await prisma.gamificationSettings.findFirst();
+    if (!settings) {
+      settings = await prisma.gamificationSettings.create({ data: { id: 'default' } });
+    }
+
+    // Get stats
+    const [activeUsers, totalPointsResult, achievementsToday, avgLevelResult] = await Promise.all([
+      prisma.userPoints.count(),
+      prisma.userPoints.aggregate({ _sum: { dailyPoints: true } }),
+      prisma.userAchievement.count({
+        where: { earnedAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } }
+      }),
+      prisma.userPoints.aggregate({ _avg: { level: true } })
+    ]);
+
+    res.render('admin/gamification', {
+      user: req.user,
+      active: 'gamification',
+      basePath: res.locals.basePath,
+      branding,
+      settings,
+      stats: {
+        activeUsers,
+        totalPointsToday: totalPointsResult._sum.dailyPoints || 0,
+        achievementsEarnedToday: achievementsToday,
+        avgLevel: avgLevelResult._avg.level || 1
+      }
+    });
+  } catch (err) {
+    logger.error({ err }, 'Gamification page error');
+    res.render('admin/error', { error: 'Failed to load gamification settings', user: req.user });
+  }
+});
+
+router.post('/gamification/settings', async (req, res) => {
+  try {
+    const data = req.body;
+    await prisma.gamificationSettings.upsert({
+      where: { id: 'default' },
+      update: {
+        leaderboardEnabled: data.leaderboardEnabled,
+        achievementsEnabled: data.achievementsEnabled,
+        pointsPerGradeA: data.pointsPerGradeA,
+        pointsPerGradeB: data.pointsPerGradeB,
+        pointsPerGradeC: data.pointsPerGradeC,
+        pointsPerGradeD: data.pointsPerGradeD,
+        pointsPerGradeF: data.pointsPerGradeF,
+        bonusSaleMade: data.bonusSaleMade,
+        levelUpThreshold: data.levelUpThreshold,
+        bonusStreak3: data.bonusStreak3,
+        bonusStreak5: data.bonusStreak5,
+        bonusStreak7: data.bonusStreak7
+      },
+      create: { id: 'default', ...data }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Save gamification settings error');
+    res.status(500).json({ success: false });
+  }
+});
+
+router.post('/gamification/reset-daily', async (req, res) => {
+  try {
+    await prisma.userPoints.updateMany({ data: { dailyPoints: 0 } });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Reset daily points error');
+    res.status(500).json({ success: false });
+  }
+});
+
+router.post('/gamification/reset-weekly', async (req, res) => {
+  try {
+    await prisma.userPoints.updateMany({ data: { weeklyPoints: 0 } });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Reset weekly points error');
+    res.status(500).json({ success: false });
+  }
+});
+
+// ============================================
+// ACHIEVEMENTS
+// ============================================
+
+router.get('/achievements', async (req, res) => {
+  try {
+    const branding = await getBranding();
+    const achievements = await prisma.achievement.findMany({
+      orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }]
+    });
+
+    res.render('admin/achievements', {
+      user: req.user,
+      active: 'achievements',
+      basePath: res.locals.basePath,
+      branding,
+      achievements
+    });
+  } catch (err) {
+    logger.error({ err }, 'Achievements page error');
+    res.render('admin/error', { error: 'Failed to load achievements', user: req.user });
+  }
+});
+
+router.post('/achievements', async (req, res) => {
+  try {
+    const { code, name, icon, description, category, tier, pointsReward, requirement } = req.body;
+    await prisma.achievement.create({
+      data: { code, name, icon, description, category, tier, pointsReward, requirement }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Create achievement error');
+    res.status(500).json({ success: false });
+  }
+});
+
+router.put('/achievements/:id', async (req, res) => {
+  try {
+    const { code, name, icon, description, category, tier, pointsReward, requirement } = req.body;
+    await prisma.achievement.update({
+      where: { id: req.params.id },
+      data: { code, name, icon, description, category, tier, pointsReward, requirement }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Update achievement error');
+    res.status(500).json({ success: false });
+  }
+});
+
+router.post('/achievements/:id/toggle', async (req, res) => {
+  try {
+    const achievement = await prisma.achievement.findUnique({ where: { id: req.params.id } });
+    if (achievement) {
+      await prisma.achievement.update({
+        where: { id: req.params.id },
+        data: { isActive: !achievement.isActive }
+      });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Toggle achievement error');
+    res.status(500).json({ success: false });
+  }
+});
+
+router.delete('/achievements/:id', async (req, res) => {
+  try {
+    await prisma.achievement.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Delete achievement error');
+    res.status(500).json({ success: false });
+  }
+});
+
+// ============================================
+// LEADERBOARD
+// ============================================
+
+router.get('/leaderboard', async (req, res) => {
+  try {
+    const branding = await getBranding();
+    const period = (req.query.period as string) || 'daily';
+    const pointsField = period === 'alltime' ? 'totalPoints' :
+                        period === 'daily' ? 'dailyPoints' :
+                        period === 'weekly' ? 'weeklyPoints' : 'monthlyPoints';
+
+    const leaderboard = await prisma.userPoints.findMany({
+      orderBy: { [pointsField]: 'desc' },
+      take: 25,
+      include: {
+        user: { select: { id: true, name: true } }
+      }
+    });
+
+    const [totalUsers, totalPointsResult, achievementsUnlocked, longestStreakResult] = await Promise.all([
+      prisma.userPoints.count(),
+      prisma.userPoints.aggregate({ _sum: { totalPoints: true } }),
+      prisma.userAchievement.count(),
+      prisma.userPoints.aggregate({ _max: { longestStreak: true } })
+    ]);
+
+    const recentActivity = await prisma.pointsHistory.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      include: { user: { select: { name: true } } }
+    });
+
+    res.render('admin/leaderboard', {
+      user: req.user,
+      active: 'leaderboard',
+      basePath: res.locals.basePath,
+      branding,
+      leaderboard: leaderboard.map(up => ({
+        userId: up.userId,
+        userName: up.user.name,
+        points: (up as any)[pointsField],
+        level: up.level,
+        currentStreak: up.currentStreak,
+        sessionsCompleted: 0
+      })),
+      stats: {
+        totalUsers,
+        totalPoints: totalPointsResult._sum.totalPoints || 0,
+        achievementsUnlocked,
+        longestStreak: longestStreakResult._max.longestStreak || 0
+      },
+      recentActivity: recentActivity.map(a => ({
+        ...a,
+        userName: a.user?.name
+      }))
+    });
+  } catch (err) {
+    logger.error({ err }, 'Leaderboard page error');
+    res.render('admin/error', { error: 'Failed to load leaderboard', user: req.user });
+  }
+});
+
+router.get('/leaderboard/data', async (req, res) => {
+  try {
+    const period = (req.query.period as string) || 'daily';
+    const pointsField = period === 'alltime' ? 'totalPoints' :
+                        period === 'daily' ? 'dailyPoints' :
+                        period === 'weekly' ? 'weeklyPoints' : 'monthlyPoints';
+
+    const leaderboard = await prisma.userPoints.findMany({
+      orderBy: { [pointsField]: 'desc' },
+      take: 25,
+      include: {
+        user: { select: { id: true, name: true } }
+      }
+    });
+
+    res.json({
+      success: true,
+      leaderboard: leaderboard.map(up => ({
+        userId: up.userId,
+        userName: up.user.name,
+        points: (up as any)[pointsField],
+        level: up.level,
+        currentStreak: up.currentStreak,
+        sessionsCompleted: 0
+      }))
+    });
+  } catch (err) {
+    logger.error({ err }, 'Leaderboard data error');
+    res.status(500).json({ success: false });
+  }
+});
+
+// ============================================
+// SCENARIOS
+// ============================================
+
+router.get('/scenarios', async (req, res) => {
+  try {
+    const branding = await getBranding();
+    const scenarios = await prisma.scenario.findMany({
+      orderBy: [{ category: 'asc' }, { sortOrder: 'asc' }]
+    });
+
+    res.render('admin/scenarios', {
+      user: req.user,
+      active: 'scenarios',
+      basePath: res.locals.basePath,
+      branding,
+      scenarios
+    });
+  } catch (err) {
+    logger.error({ err }, 'Scenarios page error');
+    res.render('admin/error', { error: 'Failed to load scenarios', user: req.user });
+  }
+});
+
+router.post('/scenarios', async (req, res) => {
+  try {
+    const { name, category, difficulty, description, buyerPersona, successCriteria, coachingTips, estimatedDuration } = req.body;
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    await prisma.scenario.create({
+      data: {
+        name,
+        slug,
+        category,
+        difficulty,
+        description,
+        buyerPersona,
+        successCriteria: successCriteria || '[]',
+        coachingTips: coachingTips || '[]',
+        estimatedDuration: estimatedDuration || 5
+      }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Create scenario error');
+    res.status(500).json({ success: false });
+  }
+});
+
+router.put('/scenarios/:id', async (req, res) => {
+  try {
+    const { name, category, difficulty, description, buyerPersona, successCriteria, coachingTips, estimatedDuration } = req.body;
+    await prisma.scenario.update({
+      where: { id: req.params.id },
+      data: {
+        name,
+        category,
+        difficulty,
+        description,
+        buyerPersona,
+        successCriteria: successCriteria || '[]',
+        coachingTips: coachingTips || '[]',
+        estimatedDuration: estimatedDuration || 5
+      }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Update scenario error');
+    res.status(500).json({ success: false });
+  }
+});
+
+router.post('/scenarios/:id/toggle', async (req, res) => {
+  try {
+    const scenario = await prisma.scenario.findUnique({ where: { id: req.params.id } });
+    if (scenario) {
+      await prisma.scenario.update({
+        where: { id: req.params.id },
+        data: { enabled: !scenario.enabled }
+      });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Toggle scenario error');
+    res.status(500).json({ success: false });
+  }
+});
+
+router.delete('/scenarios/:id', async (req, res) => {
+  try {
+    await prisma.scenario.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'Delete scenario error');
+    res.status(500).json({ success: false });
+  }
+});
+
+// ============================================
+// CRM INTEGRATIONS
+// ============================================
+
+import {
+  getSalesforceAuthUrl,
+  getHubSpotAuthUrl,
+  exchangeSalesforceCode,
+  exchangeHubSpotCode,
+  disconnectCrm,
+  isCrmConfigured,
+  initializeCrmIntegrations
+} from '../services/crm/crmOAuth.js';
+import { getSyncStats, getRecentSyncLogs, retrySyncLog } from '../services/crm/crmSync.js';
+import * as salesforceClient from '../services/crm/salesforceClient.js';
+import * as hubspotClient from '../services/crm/hubspotClient.js';
+
+// CRM Integrations page
+router.get('/crm', requireAdmin, async (req, res) => {
+  try {
+    const branding = await getBranding();
+
+    // Initialize integrations if needed
+    await initializeCrmIntegrations();
+
+    // Get all integrations
+    const integrations = await prisma.crmIntegration.findMany({
+      orderBy: { provider: 'asc' }
+    });
+
+    // Check which are configured
+    const configured: Record<string, boolean> = {
+      salesforce: isCrmConfigured('salesforce'),
+      hubspot: isCrmConfigured('hubspot')
+    };
+
+    // Get stats for connected integrations
+    const stats: Record<string, any> = {};
+    for (const integration of integrations) {
+      if (integration.isConnected) {
+        stats[integration.provider] = await getSyncStats(integration.provider as 'salesforce' | 'hubspot');
+      }
+    }
+
+    res.render('admin/crm_integrations', {
+      user: req.user,
+      active: 'crm',
+      basePath: res.locals.basePath,
+      branding,
+      integrations,
+      configured,
+      stats
+    });
+  } catch (err) {
+    logger.error({ err }, 'CRM page error');
+    res.render('admin/error', { error: 'Failed to load CRM integrations', user: req.user });
+  }
+});
+
+// Salesforce OAuth connect
+router.get('/crm/salesforce/connect', requireAdmin, (req, res) => {
+  const state = Buffer.from(JSON.stringify({
+    basePath: res.locals.basePath,
+    timestamp: Date.now()
+  })).toString('base64');
+  res.redirect(getSalesforceAuthUrl(state));
+});
+
+// Salesforce OAuth callback
+router.get('/crm/salesforce/callback', requireAdmin, async (req, res) => {
+  const basePath = res.locals.basePath || '';
+  try {
+    const code = req.query.code as string;
+    if (!code) {
+      throw new Error('No authorization code received');
+    }
+
+    const tokens = await exchangeSalesforceCode(code);
+
+    await prisma.crmIntegration.update({
+      where: { provider: 'salesforce' },
+      data: {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        instanceUrl: tokens.instanceUrl,
+        tokenExpiresAt: tokens.expiresAt,
+        isConnected: true,
+        lastError: null
+      }
+    });
+
+    res.redirect(`${basePath}/admin/crm?success=Salesforce+connected+successfully`);
+  } catch (err: any) {
+    logger.error({ err }, 'Salesforce OAuth callback error');
+    res.redirect(`${basePath}/admin/crm?error=${encodeURIComponent(err.message)}`);
+  }
+});
+
+// HubSpot OAuth connect
+router.get('/crm/hubspot/connect', requireAdmin, (req, res) => {
+  const state = Buffer.from(JSON.stringify({
+    basePath: res.locals.basePath,
+    timestamp: Date.now()
+  })).toString('base64');
+  res.redirect(getHubSpotAuthUrl(state));
+});
+
+// HubSpot OAuth callback
+router.get('/crm/hubspot/callback', requireAdmin, async (req, res) => {
+  const basePath = res.locals.basePath || '';
+  try {
+    const code = req.query.code as string;
+    if (!code) {
+      throw new Error('No authorization code received');
+    }
+
+    const tokens = await exchangeHubSpotCode(code);
+
+    // Get portal info
+    let portalId = '';
+    try {
+      const portalInfo = await hubspotClient.getPortalInfo();
+      if (portalInfo) portalId = portalInfo.portalId;
+    } catch {}
+
+    await prisma.crmIntegration.update({
+      where: { provider: 'hubspot' },
+      data: {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        tokenExpiresAt: tokens.expiresAt,
+        portalId,
+        isConnected: true,
+        lastError: null
+      }
+    });
+
+    res.redirect(`${basePath}/admin/crm?success=HubSpot+connected+successfully`);
+  } catch (err: any) {
+    logger.error({ err }, 'HubSpot OAuth callback error');
+    res.redirect(`${basePath}/admin/crm?error=${encodeURIComponent(err.message)}`);
+  }
+});
+
+// Toggle CRM enabled
+router.post('/crm/:provider/toggle', requireAdmin, async (req, res) => {
+  try {
+    const provider = req.params.provider;
+    const { enabled } = req.body;
+    await prisma.crmIntegration.update({
+      where: { provider },
+      data: { isEnabled: enabled }
+    });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Test CRM connection
+router.post('/crm/:provider/test', requireAdmin, async (req, res) => {
+  try {
+    const provider = req.params.provider as 'salesforce' | 'hubspot';
+    let result;
+    if (provider === 'salesforce') {
+      result = await salesforceClient.testConnection();
+    } else {
+      result = await hubspotClient.testConnection();
+    }
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Disconnect CRM
+router.post('/crm/:provider/disconnect', requireAdmin, async (req, res) => {
+  try {
+    const provider = req.params.provider as 'salesforce' | 'hubspot';
+    await disconnectCrm(provider);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get sync logs
+router.get('/crm/:provider/logs', requireAdmin, async (req, res) => {
+  try {
+    const provider = req.params.provider as 'salesforce' | 'hubspot';
+    const logs = await getRecentSyncLogs(provider, 50);
+    res.json({ success: true, logs });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Retry sync log
+router.post('/crm/sync-logs/:id/retry', requireAdmin, async (req, res) => {
+  try {
+    const result = await retrySyncLog(req.params.id);
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get field mappings
+router.get('/crm/:provider/mappings', requireAdmin, async (req, res) => {
+  try {
+    const integration = await prisma.crmIntegration.findUnique({
+      where: { provider: req.params.provider },
+      include: { fieldMappings: true }
+    });
+    res.json({ success: true, mappings: integration?.fieldMappings || [] });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Save field mappings
+router.post('/crm/:provider/mappings', requireAdmin, async (req, res) => {
+  try {
+    const provider = req.params.provider;
+    const { mappings } = req.body;
+
+    const integration = await prisma.crmIntegration.findUnique({
+      where: { provider }
+    });
+
+    if (!integration) {
+      return res.status(404).json({ success: false, error: 'Integration not found' });
+    }
+
+    // Delete existing mappings
+    await prisma.crmFieldMapping.deleteMany({
+      where: { integrationId: integration.id }
+    });
+
+    // Create new mappings
+    for (const mapping of mappings) {
+      if (mapping.targetField && mapping.targetObject) {
+        await prisma.crmFieldMapping.create({
+          data: {
+            integrationId: integration.id,
+            sourceEntity: 'session',
+            sourceField: mapping.sourceField,
+            targetObject: mapping.targetObject,
+            targetField: mapping.targetField,
+            isEnabled: mapping.isEnabled ?? true
+          }
+        });
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

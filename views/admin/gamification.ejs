@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gamification Settings - Sell Me a Pen Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root {
+      --sidebar-bg: <%= branding?.primaryColor || '#4f46e5' %>;
+    }
+    .sidebar { min-height: 100vh; background: var(--sidebar-bg); }
+    .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1rem; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+    .sidebar .nav-link i { margin-right: 0.5rem; }
+    .main-content { background: #f8f9fa; min-height: 100vh; }
+    .nav-divider { border-top: 1px solid rgba(255,255,255,0.2); margin: 0.5rem 0; }
+    .nav-section { color: rgba(255,255,255,0.5); font-size: 0.75rem; padding: 0.5rem 1rem; text-transform: uppercase; }
+    .stat-card { border: none; border-radius: 12px; transition: transform 0.2s, box-shadow 0.2s; }
+    .stat-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+    .grade-badge { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-weight: bold; font-size: 1.2rem; }
+    .grade-a { background: linear-gradient(135deg, #10b981, #34d399); color: white; }
+    .grade-b { background: linear-gradient(135deg, #3b82f6, #60a5fa); color: white; }
+    .grade-c { background: linear-gradient(135deg, #f59e0b, #fbbf24); color: white; }
+    .grade-d { background: linear-gradient(135deg, #f97316, #fb923c); color: white; }
+    .grade-f { background: linear-gradient(135deg, #ef4444, #f87171); color: white; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <%- include('_sidebar', { active: 'gamification', basePath, branding }) %>
+
+      <main class="col-md-10 ms-sm-auto main-content p-4">
+        <h2 class="mb-4"><i class="bi bi-trophy text-primary me-2"></i>Gamification Settings</h2>
+
+        <p class="text-muted mb-4">Configure points, levels, and achievements to motivate users.</p>
+
+        <!-- Quick Stats -->
+        <div class="row mb-4">
+          <div class="col-md-3">
+            <div class="card stat-card shadow-sm">
+              <div class="card-body text-center">
+                <i class="bi bi-people-fill text-primary mb-2" style="font-size: 2.5rem;"></i>
+                <h2 class="mb-0"><%= stats.activeUsers %></h2>
+                <small class="text-muted">Active Users</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card stat-card shadow-sm">
+              <div class="card-body text-center">
+                <i class="bi bi-star-fill text-warning mb-2" style="font-size: 2.5rem;"></i>
+                <h2 class="mb-0"><%= stats.totalPointsToday.toLocaleString() %></h2>
+                <small class="text-muted">Points Today</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card stat-card shadow-sm">
+              <div class="card-body text-center">
+                <i class="bi bi-award-fill text-success mb-2" style="font-size: 2.5rem;"></i>
+                <h2 class="mb-0"><%= stats.achievementsEarnedToday %></h2>
+                <small class="text-muted">Achievements Today</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card stat-card shadow-sm">
+              <div class="card-body text-center">
+                <i class="bi bi-arrow-up-right-circle-fill text-info mb-2" style="font-size: 2.5rem;"></i>
+                <h2 class="mb-0"><%= stats.avgLevel.toFixed(1) %></h2>
+                <small class="text-muted">Average Level</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <!-- Settings Form -->
+          <div class="col-md-8">
+            <div class="card shadow-sm">
+              <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-gear me-2"></i>Point Settings</h5>
+              </div>
+              <div class="card-body">
+                <form id="settingsForm">
+                  <!-- Feature Toggles -->
+                  <div class="row mb-4">
+                    <div class="col-md-6">
+                      <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="leaderboardEnabled"
+                               <%= settings.leaderboardEnabled ? 'checked' : '' %>>
+                        <label class="form-check-label" for="leaderboardEnabled">
+                          <strong>Enable Leaderboard</strong>
+                        </label>
+                      </div>
+                      <small class="text-muted">Show public rankings</small>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="achievementsEnabled"
+                               <%= settings.achievementsEnabled ? 'checked' : '' %>>
+                        <label class="form-check-label" for="achievementsEnabled">
+                          <strong>Enable Achievements</strong>
+                        </label>
+                      </div>
+                      <small class="text-muted">Award badges and bonuses</small>
+                    </div>
+                  </div>
+
+                  <hr>
+
+                  <!-- Points Per Grade -->
+                  <h6 class="mb-3"><i class="bi bi-star me-2"></i>Points Per Session Grade</h6>
+                  <div class="row mb-4">
+                    <div class="col">
+                      <div class="d-flex align-items-center">
+                        <span class="grade-badge grade-a me-2">A</span>
+                        <input type="number" class="form-control" id="pointsPerGradeA"
+                               value="<%= settings.pointsPerGradeA %>" min="0">
+                      </div>
+                    </div>
+                    <div class="col">
+                      <div class="d-flex align-items-center">
+                        <span class="grade-badge grade-b me-2">B</span>
+                        <input type="number" class="form-control" id="pointsPerGradeB"
+                               value="<%= settings.pointsPerGradeB %>" min="0">
+                      </div>
+                    </div>
+                    <div class="col">
+                      <div class="d-flex align-items-center">
+                        <span class="grade-badge grade-c me-2">C</span>
+                        <input type="number" class="form-control" id="pointsPerGradeC"
+                               value="<%= settings.pointsPerGradeC %>" min="0">
+                      </div>
+                    </div>
+                    <div class="col">
+                      <div class="d-flex align-items-center">
+                        <span class="grade-badge grade-d me-2">D</span>
+                        <input type="number" class="form-control" id="pointsPerGradeD"
+                               value="<%= settings.pointsPerGradeD %>" min="0">
+                      </div>
+                    </div>
+                    <div class="col">
+                      <div class="d-flex align-items-center">
+                        <span class="grade-badge grade-f me-2">F</span>
+                        <input type="number" class="form-control" id="pointsPerGradeF"
+                               value="<%= settings.pointsPerGradeF %>" min="0">
+                      </div>
+                    </div>
+                  </div>
+
+                  <hr>
+
+                  <!-- Bonus Points -->
+                  <h6 class="mb-3"><i class="bi bi-gift me-2"></i>Bonus Points</h6>
+                  <div class="row mb-4">
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label">Sale Made Bonus</label>
+                      <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-cash"></i></span>
+                        <input type="number" class="form-control" id="bonusSaleMade"
+                               value="<%= settings.bonusSaleMade %>" min="0">
+                        <span class="input-group-text">pts</span>
+                      </div>
+                      <small class="text-muted">Extra points when user closes a sale</small>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label">Level Up Threshold</label>
+                      <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-arrow-up"></i></span>
+                        <input type="number" class="form-control" id="levelUpThreshold"
+                               value="<%= settings.levelUpThreshold %>" min="100">
+                        <span class="input-group-text">pts</span>
+                      </div>
+                      <small class="text-muted">Points needed per level</small>
+                    </div>
+                  </div>
+
+                  <hr>
+
+                  <!-- Streak Bonuses -->
+                  <h6 class="mb-3"><i class="bi bi-fire me-2"></i>Streak Bonuses</h6>
+                  <div class="row mb-4">
+                    <div class="col-md-4">
+                      <label class="form-label">3-Day Streak</label>
+                      <div class="input-group">
+                        <input type="number" class="form-control" id="bonusStreak3"
+                               value="<%= settings.bonusStreak3 %>" min="0">
+                        <span class="input-group-text">pts</span>
+                      </div>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label">5-Day Streak</label>
+                      <div class="input-group">
+                        <input type="number" class="form-control" id="bonusStreak5"
+                               value="<%= settings.bonusStreak5 %>" min="0">
+                        <span class="input-group-text">pts</span>
+                      </div>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label">7-Day Streak</label>
+                      <div class="input-group">
+                        <input type="number" class="form-control" id="bonusStreak7"
+                               value="<%= settings.bonusStreak7 %>" min="0">
+                        <span class="input-group-text">pts</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button type="submit" class="btn btn-primary" data-bs-toggle="tooltip" title="Save all settings">
+                    <i class="bi bi-check-lg me-1"></i>Save Settings
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Links & Info -->
+          <div class="col-md-4">
+            <div class="card shadow-sm mb-3">
+              <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="bi bi-lightning me-2"></i>Quick Actions</h5>
+              </div>
+              <div class="card-body">
+                <a href="<%= basePath %>/admin/achievements" class="btn btn-outline-primary w-100 mb-2">
+                  <i class="bi bi-award me-2"></i>Manage Achievements
+                </a>
+                <a href="<%= basePath %>/admin/leaderboard" class="btn btn-outline-primary w-100 mb-2">
+                  <i class="bi bi-bar-chart me-2"></i>View Leaderboard
+                </a>
+                <hr>
+                <button class="btn btn-outline-warning w-100 mb-2" onclick="resetDailyPoints()" data-bs-toggle="tooltip" title="Reset daily points for all users">
+                  <i class="bi bi-arrow-counterclockwise me-2"></i>Reset Daily Points
+                </button>
+                <button class="btn btn-outline-warning w-100" onclick="resetWeeklyPoints()" data-bs-toggle="tooltip" title="Reset weekly points for all users">
+                  <i class="bi bi-arrow-counterclockwise me-2"></i>Reset Weekly Points
+                </button>
+              </div>
+            </div>
+
+            <div class="card shadow-sm">
+              <div class="card-header bg-light">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>How It Works</h5>
+              </div>
+              <div class="card-body">
+                <ul class="list-unstyled mb-0">
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle text-success me-2"></i>
+                    Users earn points after each session
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle text-success me-2"></i>
+                    Points based on session grade (A-F)
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle text-success me-2"></i>
+                    Bonus points for making sales
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle text-success me-2"></i>
+                    Streak bonuses for consistency
+                  </li>
+                  <li class="mb-2">
+                    <i class="bi bi-check-circle text-success me-2"></i>
+                    Achievements unlock extra rewards
+                  </li>
+                  <li>
+                    <i class="bi bi-check-circle text-success me-2"></i>
+                    Leaderboards reset daily/weekly/monthly
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const basePath = '<%= typeof basePath !== "undefined" ? basePath : "" %>';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+      tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+    });
+
+    document.getElementById('settingsForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const res = await fetch(`${basePath}/admin/gamification/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            leaderboardEnabled: document.getElementById('leaderboardEnabled').checked,
+            achievementsEnabled: document.getElementById('achievementsEnabled').checked,
+            pointsPerGradeA: parseInt(document.getElementById('pointsPerGradeA').value),
+            pointsPerGradeB: parseInt(document.getElementById('pointsPerGradeB').value),
+            pointsPerGradeC: parseInt(document.getElementById('pointsPerGradeC').value),
+            pointsPerGradeD: parseInt(document.getElementById('pointsPerGradeD').value),
+            pointsPerGradeF: parseInt(document.getElementById('pointsPerGradeF').value),
+            bonusSaleMade: parseInt(document.getElementById('bonusSaleMade').value),
+            levelUpThreshold: parseInt(document.getElementById('levelUpThreshold').value),
+            bonusStreak3: parseInt(document.getElementById('bonusStreak3').value),
+            bonusStreak5: parseInt(document.getElementById('bonusStreak5').value),
+            bonusStreak7: parseInt(document.getElementById('bonusStreak7').value)
+          })
+        });
+        if (res.ok) {
+          alert('Settings saved successfully!');
+        } else {
+          alert('Failed to save settings');
+        }
+      } catch (err) {
+        alert('Error saving settings');
+      }
+    });
+
+    async function resetDailyPoints() {
+      if (!confirm('Reset daily points for all users? This cannot be undone.')) return;
+      try {
+        const res = await fetch(`${basePath}/admin/gamification/reset-daily`, { method: 'POST' });
+        if (res.ok) {
+          alert('Daily points reset successfully!');
+          location.reload();
+        } else {
+          alert('Failed to reset daily points');
+        }
+      } catch (err) {
+        alert('Error resetting daily points');
+      }
+    }
+
+    async function resetWeeklyPoints() {
+      if (!confirm('Reset weekly points for all users? This cannot be undone.')) return;
+      try {
+        const res = await fetch(`${basePath}/admin/gamification/reset-weekly`, { method: 'POST' });
+        if (res.ok) {
+          alert('Weekly points reset successfully!');
+          location.reload();
+        } else {
+          alert('Failed to reset weekly points');
+        }
+      } catch (err) {
+        alert('Error resetting weekly points');
+      }
+    }
+  </script>
+</body>
+</html>

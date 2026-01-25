@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Positioning Angles - Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root {
+      --sidebar-bg: <%= branding?.primaryColor || '#4f46e5' %>;
+    }
+    .sidebar { min-height: 100vh; background: var(--sidebar-bg); }
+    .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1rem; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+    .sidebar .nav-link i { margin-right: 0.5rem; }
+    .main-content { background: #f8f9fa; min-height: 100vh; }
+    .nav-divider { border-top: 1px solid rgba(255,255,255,0.2); margin: 0.5rem 0; }
+    .nav-section { color: rgba(255,255,255,0.5); font-size: 0.75rem; padding: 0.5rem 1rem; text-transform: uppercase; }
+    .bulk-actions { display: none; background: #e3f2fd; padding: 0.75rem 1rem; border-radius: 8px; }
+    .bulk-actions.show { display: flex; }
+    .row-checkbox { cursor: pointer; }
+    tr.selected { background-color: #e3f2fd !important; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <%- include('_sidebar', { active: 'positioning', basePath, branding }) %>
+
+      <main class="col-md-10 ms-sm-auto main-content p-4">
+        <h2 class="mb-4"><i class="bi bi-bullseye text-primary me-2"></i>Positioning Angles</h2>
+
+        <p class="text-muted mb-4">Different customers have different needs. The AI uses these positioning angles to frame the pen based on what matters most to each customer.</p>
+
+        <!-- Add New Angle Form -->
+        <div class="card mb-4">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Add New Positioning Angle</h5>
+          </div>
+          <div class="card-body">
+            <form id="addAngleForm">
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">User Need</label>
+                  <select class="form-select" id="userNeed" required>
+                    <option value="professionalism">Professionalism</option>
+                    <option value="reliability">Reliability</option>
+                    <option value="creativity">Creativity</option>
+                    <option value="organization">Organization</option>
+                    <option value="status">Status</option>
+                    <option value="gift">Gift</option>
+                  </select>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Headline</label>
+                  <input type="text" class="form-control" id="headline" placeholder="e.g., Make Every Signature Count" required>
+                </div>
+                <div class="col-md-12 mb-3">
+                  <label class="form-label">Pitch</label>
+                  <textarea class="form-control" id="pitch" rows="2" placeholder="The main sales pitch for this positioning" required></textarea>
+                </div>
+                <div class="col-md-12 mb-3">
+                  <label class="form-label">Emotional Hook</label>
+                  <input type="text" class="form-control" id="emotionalHook" placeholder="e.g., Imagine the confidence you'll feel..." required>
+                </div>
+              </div>
+              <button type="submit" class="btn btn-primary" data-bs-toggle="tooltip" title="Add this positioning angle">
+                <i class="bi bi-plus"></i> Add Angle
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Bulk Actions Toolbar -->
+        <div class="bulk-actions mb-3 align-items-center justify-content-between" id="bulkActions">
+          <div>
+            <span class="me-3"><strong id="selectedCount">0</strong> selected</span>
+            <button class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="Delete selected angles" onclick="bulkDelete()">
+              <i class="bi bi-trash"></i> Delete Selected
+            </button>
+            <button class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="tooltip" title="Toggle enabled state" onclick="bulkToggle()">
+              <i class="bi bi-toggle-on"></i> Toggle Selected
+            </button>
+          </div>
+          <button class="btn btn-sm btn-link" onclick="clearSelection()" data-bs-toggle="tooltip" title="Clear all selections">Clear Selection</button>
+        </div>
+
+        <!-- Angles Table -->
+        <div class="card">
+          <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Current Positioning Angles</h5>
+          </div>
+          <div class="card-body p-0">
+            <table class="table table-hover mb-0" id="anglesTable">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 40px;">
+                    <input type="checkbox" class="form-check-input" id="selectAll" data-bs-toggle="tooltip" title="Select all rows">
+                  </th>
+                  <th>User Need</th>
+                  <th>Headline</th>
+                  <th>Pitch</th>
+                  <th>Emotional Hook</th>
+                  <th>Enabled</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody">
+                <% angles.forEach(angle => { %>
+                <tr data-id="<%= angle.id %>">
+                  <td>
+                    <input type="checkbox" class="form-check-input row-checkbox" value="<%= angle.id %>">
+                  </td>
+                  <td>
+                    <span class="badge bg-primary"><%= angle.userNeed %></span>
+                  </td>
+                  <td><strong><%= angle.headline %></strong></td>
+                  <td><small class="text-muted"><%= angle.pitch.substring(0, 60) %><%= angle.pitch.length > 60 ? '...' : '' %></small></td>
+                  <td><small><%= angle.emotionalHook.substring(0, 40) %><%= angle.emotionalHook.length > 40 ? '...' : '' %></small></td>
+                  <td>
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" id="enabled-<%= angle.id %>"
+                             <%= angle.enabled ? 'checked' : '' %>
+                             onchange="toggleAngle('<%= angle.id %>')"
+                             data-bs-toggle="tooltip"
+                             title="<%= angle.enabled ? 'Disable' : 'Enable' %> this angle">
+                    </div>
+                  </td>
+                  <td>
+                    <button class="btn btn-sm btn-outline-primary"
+                            data-bs-toggle="tooltip"
+                            title="Edit this angle"
+                            onclick="editAngle('<%= angle.id %>')">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger ms-1"
+                            data-bs-toggle="tooltip"
+                            title="Delete this angle"
+                            onclick="deleteAngle('<%= angle.id %>')">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+                <% }) %>
+                <% if (angles.length === 0) { %>
+                <tr id="emptyRow">
+                  <td colspan="7" class="text-center text-muted py-4">
+                    No positioning angles yet. Add some above.
+                  </td>
+                </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Positioning Angle</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="editForm">
+            <input type="hidden" id="editId">
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label">User Need</label>
+                <select class="form-select" id="editUserNeed" required>
+                  <option value="professionalism">Professionalism</option>
+                  <option value="reliability">Reliability</option>
+                  <option value="creativity">Creativity</option>
+                  <option value="organization">Organization</option>
+                  <option value="status">Status</option>
+                  <option value="gift">Gift</option>
+                </select>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Headline</label>
+                <input type="text" class="form-control" id="editHeadline" required>
+              </div>
+              <div class="col-md-12 mb-3">
+                <label class="form-label">Pitch</label>
+                <textarea class="form-control" id="editPitch" rows="3" required></textarea>
+              </div>
+              <div class="col-md-12 mb-3">
+                <label class="form-label">Emotional Hook</label>
+                <input type="text" class="form-control" id="editEmotionalHook" required>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="saveEdit()" data-bs-toggle="tooltip" title="Save changes">
+            <i class="bi bi-check"></i> Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const basePath = '<%= typeof basePath !== "undefined" ? basePath : "" %>';
+    const csrfToken = '<%= typeof csrfToken !== "undefined" ? csrfToken : "" %>';
+    let selectedRows = new Set();
+    let editModal;
+
+    const anglesData = <%- JSON.stringify(angles) %>;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+      tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+      editModal = new bootstrap.Modal(document.getElementById('editModal'));
+    });
+
+    // Select all checkbox
+    document.getElementById('selectAll').addEventListener('change', function() {
+      const checkboxes = document.querySelectorAll('.row-checkbox');
+      checkboxes.forEach(cb => {
+        cb.checked = this.checked;
+        const row = cb.closest('tr');
+        if (this.checked) {
+          selectedRows.add(cb.value);
+          row.classList.add('selected');
+        } else {
+          selectedRows.delete(cb.value);
+          row.classList.remove('selected');
+        }
+      });
+      updateBulkActions();
+    });
+
+    document.querySelectorAll('.row-checkbox').forEach(cb => {
+      cb.addEventListener('change', function() {
+        const row = this.closest('tr');
+        if (this.checked) {
+          selectedRows.add(this.value);
+          row.classList.add('selected');
+        } else {
+          selectedRows.delete(this.value);
+          row.classList.remove('selected');
+        }
+        updateBulkActions();
+      });
+    });
+
+    function updateBulkActions() {
+      const bulkActions = document.getElementById('bulkActions');
+      const selectedCount = document.getElementById('selectedCount');
+      selectedCount.textContent = selectedRows.size;
+      bulkActions.classList.toggle('show', selectedRows.size > 0);
+    }
+
+    function clearSelection() {
+      selectedRows.clear();
+      document.querySelectorAll('.row-checkbox').forEach(cb => {
+        cb.checked = false;
+        cb.closest('tr').classList.remove('selected');
+      });
+      document.getElementById('selectAll').checked = false;
+      updateBulkActions();
+    }
+
+    document.getElementById('addAngleForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const res = await fetch(`${basePath}/admin/positioning`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+          body: JSON.stringify({
+            userNeed: document.getElementById('userNeed').value,
+            headline: document.getElementById('headline').value,
+            pitch: document.getElementById('pitch').value,
+            emotionalHook: document.getElementById('emotionalHook').value
+          })
+        });
+        if (res.ok) location.reload();
+        else alert('Failed to add angle');
+      } catch (err) {
+        alert('Error adding angle');
+      }
+    });
+
+    function editAngle(id) {
+      const angle = anglesData.find(a => a.id === id);
+      if (angle) {
+        document.getElementById('editId').value = angle.id;
+        document.getElementById('editUserNeed').value = angle.userNeed;
+        document.getElementById('editHeadline').value = angle.headline;
+        document.getElementById('editPitch').value = angle.pitch;
+        document.getElementById('editEmotionalHook').value = angle.emotionalHook;
+        editModal.show();
+      }
+    }
+
+    async function saveEdit() {
+      const id = document.getElementById('editId').value;
+      try {
+        const res = await fetch(`${basePath}/admin/positioning/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+          body: JSON.stringify({
+            userNeed: document.getElementById('editUserNeed').value,
+            headline: document.getElementById('editHeadline').value,
+            pitch: document.getElementById('editPitch').value,
+            emotionalHook: document.getElementById('editEmotionalHook').value
+          })
+        });
+        if (res.ok) location.reload();
+        else alert('Failed to update angle');
+      } catch (err) {
+        alert('Error updating angle');
+      }
+    }
+
+    async function toggleAngle(id) {
+      try {
+        await fetch(`${basePath}/admin/positioning/${id}/toggle`, {
+          method: 'POST',
+          headers: { 'x-csrf-token': csrfToken }
+        });
+      } catch (err) {
+        console.error('Error toggling angle:', err);
+      }
+    }
+
+    async function deleteAngle(id) {
+      if (!confirm('Delete this positioning angle?')) return;
+      try {
+        await fetch(`${basePath}/admin/positioning/${id}`, {
+          method: 'DELETE',
+          headers: { 'x-csrf-token': csrfToken }
+        });
+        location.reload();
+      } catch (err) {
+        alert('Error deleting angle');
+      }
+    }
+
+    async function bulkDelete() {
+      if (!confirm(`Delete ${selectedRows.size} selected angles?`)) return;
+      try {
+        for (const id of selectedRows) {
+          await fetch(`${basePath}/admin/positioning/${id}`, {
+            method: 'DELETE',
+            headers: { 'x-csrf-token': csrfToken }
+          });
+        }
+        location.reload();
+      } catch (err) {
+        alert('Error deleting angles');
+      }
+    }
+
+    async function bulkToggle() {
+      try {
+        for (const id of selectedRows) {
+          await fetch(`${basePath}/admin/positioning/${id}/toggle`, {
+            method: 'POST',
+            headers: { 'x-csrf-token': csrfToken }
+          });
+        }
+        location.reload();
+      } catch (err) {
+        alert('Error toggling angles');
+      }
+    }
+  </script>
+</body>
+</html>

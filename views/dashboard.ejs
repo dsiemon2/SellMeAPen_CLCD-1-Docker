@@ -64,6 +64,69 @@
       padding: 0.25rem 0.75rem;
       border-radius: 20px;
     }
+    .gamification-card {
+      background: linear-gradient(135deg, rgba(79, 70, 229, 0.3) 0%, rgba(139, 92, 246, 0.3) 100%);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+    .level-badge {
+      background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+      color: #000;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-weight: bold;
+    }
+    .points-display {
+      font-size: 2rem;
+      font-weight: bold;
+      color: #ffc107;
+    }
+    .achievement-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      margin-right: 0.25rem;
+      margin-bottom: 0.25rem;
+    }
+    .achievement-badge.bronze { background: #cd7f32; color: white; }
+    .achievement-badge.silver { background: #c0c0c0; color: #333; }
+    .achievement-badge.gold { background: #ffd700; color: #333; }
+    .achievement-badge.platinum { background: linear-gradient(135deg, #e5e4e2 0%, #a7a7a7 100%); color: #333; }
+    .leaderboard-item {
+      display: flex;
+      align-items: center;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .leaderboard-item:last-child { border-bottom: none; }
+    .rank-badge {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: bold;
+      margin-right: 0.75rem;
+    }
+    .rank-1 { background: #ffd700; color: #333; }
+    .rank-2 { background: #c0c0c0; color: #333; }
+    .rank-3 { background: #cd7f32; color: white; }
+    .progress-xp {
+      height: 8px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-xp-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #ffc107, #ff9800);
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body>
@@ -77,18 +140,18 @@
         <span class="mode-badge <%= currentMode === 'user_sells' ? 'bg-success' : 'bg-primary' %>">
           <%= currentMode === 'user_sells' ? 'You Sell Mode' : 'AI Sells Mode' %>
         </span>
-        <a href="<%= basePath %>/chat" class="btn btn-outline-primary btn-sm">
+        <a href="<%= basePath %>/chat" class="btn btn-outline-primary btn-sm" data-bs-toggle="tooltip" title="Start a new practice session">
           <i class="bi bi-chat"></i> Practice
         </a>
         <% if (user && user.role === 'admin') { %>
-          <a href="/admin" class="btn btn-outline-warning btn-sm">
+          <a href="<%= basePath %>/admin" class="btn btn-outline-warning btn-sm" data-bs-toggle="tooltip" title="Go to admin panel">
             <i class="bi bi-gear"></i> Admin
           </a>
         <% } %>
-        <span class="text-light">
+        <span class="text-light" data-bs-toggle="tooltip" title="Logged in as <%= user ? user.email : 'Guest' %>">
           <i class="bi bi-person-circle me-1"></i><%= user ? user.name : 'Guest' %>
         </span>
-        <a href="/auth/logout" class="btn btn-outline-light btn-sm">
+        <a href="<%= basePath %>/auth/logout" class="btn btn-outline-light btn-sm" data-bs-toggle="tooltip" title="Sign out">
           <i class="bi bi-box-arrow-right"></i>
         </a>
       </div>
@@ -99,35 +162,127 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h2><i class="bi bi-graph-up me-2"></i>My Progress</h2>
       <% if (stats.bestStreak > 0) { %>
-        <div class="streak-badge">
+        <div class="streak-badge" data-bs-toggle="tooltip" title="Your longest consecutive sales streak">
           <i class="bi bi-fire"></i>
           Best Streak: <%= stats.bestStreak %> sales
         </div>
       <% } %>
     </div>
 
+    <% if (gamification) { %>
+    <!-- Gamification Section -->
+    <div class="row g-4 mb-4">
+      <div class="col-lg-8">
+        <div class="gamification-card">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <span class="level-badge" data-bs-toggle="tooltip" title="Your current level">
+                <i class="bi bi-star-fill"></i> Level <%= gamification.level %>
+              </span>
+            </div>
+            <div class="text-end">
+              <div class="points-display"><%= gamification.totalPoints.toLocaleString() %></div>
+              <small class="text-muted">Total Points</small>
+            </div>
+          </div>
+
+          <!-- XP Progress Bar -->
+          <div class="mb-3">
+            <div class="d-flex justify-content-between mb-1">
+              <small>Progress to Level <%= gamification.level + 1 %></small>
+              <small><%= gamification.pointsToNextLevel %> XP needed</small>
+            </div>
+            <div class="progress-xp">
+              <% const levelProgress = ((500 - gamification.pointsToNextLevel) / 500) * 100; %>
+              <div class="progress-xp-bar" style="width: <%= levelProgress %>%"></div>
+            </div>
+          </div>
+
+          <div class="row text-center">
+            <div class="col-4">
+              <div class="h4 mb-0 text-warning"><%= gamification.currentStreak %></div>
+              <small class="text-muted"><i class="bi bi-fire"></i> Day Streak</small>
+            </div>
+            <div class="col-4">
+              <div class="h4 mb-0 text-info"><%= gamification.weeklyPoints %></div>
+              <small class="text-muted"><i class="bi bi-calendar-week"></i> Weekly XP</small>
+            </div>
+            <div class="col-4">
+              <div class="h4 mb-0 text-success"><%= gamification.achievements.length %></div>
+              <small class="text-muted"><i class="bi bi-trophy"></i> Achievements</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Leaderboard Widget -->
+      <div class="col-lg-4">
+        <div class="chart-container h-100">
+          <h6 class="mb-3"><i class="bi bi-bar-chart me-2"></i>Weekly Leaderboard</h6>
+          <% if (leaderboard.length === 0) { %>
+            <p class="text-muted small text-center">No rankings yet</p>
+          <% } else { %>
+            <% leaderboard.forEach((entry, index) => { %>
+              <div class="leaderboard-item <%= entry.userId === user.id ? 'bg-primary bg-opacity-25 rounded px-2' : '' %>">
+                <div class="rank-badge <%= index < 3 ? 'rank-' + (index + 1) : 'bg-secondary' %>">
+                  <%= entry.rank %>
+                </div>
+                <div class="flex-grow-1">
+                  <div class="small fw-bold"><%= entry.userName %></div>
+                  <div class="small text-muted">Level <%= entry.level %></div>
+                </div>
+                <div class="text-end">
+                  <div class="text-warning fw-bold"><%= entry.points %></div>
+                  <small class="text-muted">XP</small>
+                </div>
+              </div>
+            <% }) %>
+          <% } %>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Achievements -->
+    <% if (gamification.achievements.length > 0) { %>
+    <div class="chart-container mb-4">
+      <h6 class="mb-3"><i class="bi bi-trophy me-2"></i>Your Achievements</h6>
+      <div>
+        <% gamification.achievements.slice(0, 8).forEach(achievement => { %>
+          <span class="achievement-badge <%= achievement.tier %>" data-bs-toggle="tooltip" title="<%= achievement.description %>">
+            <i class="bi <%= achievement.icon %>"></i>
+            <%= achievement.name %>
+          </span>
+        <% }) %>
+        <% if (gamification.achievements.length > 8) { %>
+          <span class="text-muted small">+<%= gamification.achievements.length - 8 %> more</span>
+        <% } %>
+      </div>
+    </div>
+    <% } %>
+    <% } %>
+
     <!-- Stats Grid -->
     <div class="row g-4 mb-4">
       <div class="col-md-3 col-6">
-        <div class="stat-card">
+        <div class="stat-card" data-bs-toggle="tooltip" title="Total practice sessions completed">
           <div class="stat-value text-primary"><%= stats.totalSessions %></div>
           <div class="stat-label">Total Sessions</div>
         </div>
       </div>
       <div class="col-md-3 col-6">
-        <div class="stat-card">
+        <div class="stat-card" data-bs-toggle="tooltip" title="Sessions ending with a successful sale">
           <div class="stat-value text-success"><%= stats.salesMade %></div>
           <div class="stat-label">Sales Made</div>
         </div>
       </div>
       <div class="col-md-3 col-6">
-        <div class="stat-card">
+        <div class="stat-card" data-bs-toggle="tooltip" title="Percentage of sessions resulting in a sale">
           <div class="stat-value text-info"><%= stats.conversionRate %>%</div>
           <div class="stat-label">Conversion Rate</div>
         </div>
       </div>
       <div class="col-md-3 col-6">
-        <div class="stat-card">
+        <div class="stat-card" data-bs-toggle="tooltip" title="Average conversation length in messages">
           <div class="stat-value text-warning"><%= stats.avgMessages %></div>
           <div class="stat-label">Avg Messages/Session</div>
         </div>
@@ -241,6 +396,12 @@
 
   <script>
     const basePath = '<%= basePath %>';
+
+    // Initialize tooltips
+    document.addEventListener('DOMContentLoaded', () => {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+      tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+    });
 
     // Initialize trend chart
     const ctx = document.getElementById('trendChart').getContext('2d');

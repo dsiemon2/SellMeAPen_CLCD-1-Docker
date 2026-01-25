@@ -38,7 +38,8 @@ router.post('/api/session', async (req, res) => {
     const session = await prisma.salesSession.create({
       data: {
         sessionId,
-        userName: req.body.userName || null,
+        userId: req.user?.id, // Link session to authenticated user
+        userName: req.body.userName || req.user?.name || null,
         currentPhase: 'greeting'
       }
     });
@@ -54,18 +55,22 @@ router.post('/api/session', async (req, res) => {
   }
 });
 
-// API: End session
+// API: End session (with ownership enforcement)
 router.post('/api/session/:sessionId/end', async (req, res) => {
   try {
     const { sessionId } = req.params;
     const { outcome } = req.body;
 
-    const session = await prisma.salesSession.findUnique({
-      where: { sessionId }
+    // Find session with ownership check
+    const session = await prisma.salesSession.findFirst({
+      where: {
+        sessionId,
+        ...(req.user?.role !== 'admin' ? { userId: req.user?.id } : {})
+      }
     });
 
     if (!session) {
-      return res.status(404).json({ success: false, error: 'Session not found' });
+      return res.status(404).json({ success: false, error: 'Session not found or access denied' });
     }
 
     await prisma.salesSession.update({
@@ -147,12 +152,17 @@ router.post('/api/config', async (req, res) => {
   }
 });
 
-// API: Get session history
+// API: Get session history (with ownership enforcement)
 router.get('/api/session/:sessionId', async (req, res) => {
   try {
     const { sessionId } = req.params;
-    const session = await prisma.salesSession.findUnique({
-      where: { sessionId },
+    const session = await prisma.salesSession.findFirst({
+      where: {
+        sessionId,
+        // Enforce session ownership - user can only access their own sessions
+        // Admin users (checked via role) can access any session
+        ...(req.user?.role !== 'admin' ? { userId: req.user?.id } : {})
+      },
       include: {
         messages: { orderBy: { createdAt: 'asc' } },
         analytics: true
@@ -160,7 +170,7 @@ router.get('/api/session/:sessionId', async (req, res) => {
     });
 
     if (!session) {
-      return res.status(404).json({ success: false, error: 'Session not found' });
+      return res.status(404).json({ success: false, error: 'Session not found or access denied' });
     }
 
     res.json({ success: true, session });
@@ -169,15 +179,21 @@ router.get('/api/session/:sessionId', async (req, res) => {
   }
 });
 
-// API: Log a message
+// API: Log a message (with ownership enforcement)
 router.post('/api/session/:sessionId/message', async (req, res) => {
   try {
     const { sessionId } = req.params;
     const { role, content, phase, sentiment, keywords } = req.body;
 
-    const session = await prisma.salesSession.findUnique({ where: { sessionId } });
+    // Find session with ownership check
+    const session = await prisma.salesSession.findFirst({
+      where: {
+        sessionId,
+        ...(req.user?.role !== 'admin' ? { userId: req.user?.id } : {})
+      }
+    });
     if (!session) {
-      return res.status(404).json({ success: false, error: 'Session not found' });
+      return res.status(404).json({ success: false, error: 'Session not found or access denied' });
     }
 
     const message = await prisma.message.create({
@@ -200,10 +216,22 @@ router.post('/api/session/:sessionId/message', async (req, res) => {
   }
 });
 
-// API: Get session score (AI-calculated performance feedback)
+// API: Get session score (AI-calculated performance feedback, with ownership enforcement)
 router.get('/api/session/:sessionId/score', async (req, res) => {
   try {
     const { sessionId } = req.params;
+
+    // Verify ownership first
+    const session = await prisma.salesSession.findFirst({
+      where: {
+        sessionId,
+        ...(req.user?.role !== 'admin' ? { userId: req.user?.id } : {})
+      }
+    });
+
+    if (!session) {
+      return res.status(404).json({ success: false, error: 'Session not found or access denied' });
+    }
 
     const score = await calculateSessionScore(sessionId);
     if (!score) {

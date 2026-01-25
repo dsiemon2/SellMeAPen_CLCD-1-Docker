@@ -1,3 +1,11 @@
+<style>
+  .sidebar { min-height: 100vh; max-height: 100vh; overflow-y: auto; position: sticky; top: 0; }
+  .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1rem; }
+  .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+  .sidebar .nav-link i { margin-right: 0.5rem; }
+  .nav-divider { border-top: 1px solid rgba(255,255,255,0.2); margin: 0.5rem 0; }
+  .nav-section { color: rgba(255,255,255,0.5); font-size: 0.75rem; padding: 0.5rem 1rem; text-transform: uppercase; }
+</style>
 <nav class="col-md-2 d-none d-md-block sidebar p-0" style="background: <%= branding?.primaryColor || '#4f46e5' %>;">
   <div class="p-3 text-white">
     <h5><i class="bi bi-pen-fill"></i> Sell Me a Pen Ext</h5>
@@ -15,6 +23,7 @@
     <li class="nav-item"><a class="nav-link <%= active === 'discovery' ? 'active' : '' %>" href="<%= basePath %>/admin/discovery"><i class="bi bi-question-circle"></i> Discovery Q's</a></li>
     <li class="nav-item"><a class="nav-link <%= active === 'closing' ? 'active' : '' %>" href="<%= basePath %>/admin/closing"><i class="bi bi-check-circle"></i> Closing</a></li>
     <li class="nav-item"><a class="nav-link <%= active === 'objections' ? 'active' : '' %>" href="<%= basePath %>/admin/objections"><i class="bi bi-shield-exclamation"></i> Objections</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'positioning' ? 'active' : '' %>" href="<%= basePath %>/admin/positioning"><i class="bi bi-bullseye"></i> Positioning</a></li>
     <div class="nav-divider"></div>
     <div class="nav-section">AI Settings</div>
     <li class="nav-item"><a class="nav-link <%= active === 'ai-providers' ? 'active' : '' %>" href="<%= basePath %>/admin/ai-providers"><i class="bi bi-cpu"></i> AI Providers</a></li>
@@ -26,17 +35,58 @@
     <li class="nav-item"><a class="nav-link <%= active === 'logic-rules' ? 'active' : '' %>" href="<%= basePath %>/admin/logic-rules"><i class="bi bi-diagram-3"></i> Logic Rules</a></li>
     <li class="nav-item"><a class="nav-link <%= active === 'functions' ? 'active' : '' %>" href="<%= basePath %>/admin/functions"><i class="bi bi-code-square"></i> Functions</a></li>
     <div class="nav-divider"></div>
-    <div class="nav-section">Telephony</div>
+    <div class="nav-section">Notifications</div>
     <li class="nav-item"><a class="nav-link <%= active === 'sms-settings' ? 'active' : '' %>" href="<%= basePath %>/admin/sms-settings"><i class="bi bi-chat-dots"></i> SMS Settings</a></li>
-    <li class="nav-item"><a class="nav-link <%= active === 'call-transfer' ? 'active' : '' %>" href="<%= basePath %>/admin/call-transfer"><i class="bi bi-telephone-forward"></i> Call Transfer</a></li>
-    <li class="nav-item"><a class="nav-link <%= active === 'dtmf-menu' ? 'active' : '' %>" href="<%= basePath %>/admin/dtmf-menu"><i class="bi bi-grid-3x3"></i> DTMF Menu</a></li>
     <div class="nav-divider"></div>
     <div class="nav-section">Integrations</div>
+    <li class="nav-item"><a class="nav-link <%= active === 'crm' ? 'active' : '' %>" href="<%= basePath %>/admin/crm"><i class="bi bi-diagram-3"></i> CRM</a></li>
     <li class="nav-item"><a class="nav-link <%= active === 'webhooks' ? 'active' : '' %>" href="<%= basePath %>/admin/webhooks"><i class="bi bi-link-45deg"></i> WebHooks</a></li>
     <li class="nav-item"><a class="nav-link <%= active === 'payments' ? 'active' : '' %>" href="<%= basePath %>/admin/payments"><i class="bi bi-credit-card"></i> Payments</a></li>
     <div class="nav-divider"></div>
+    <div class="nav-section">Gamification</div>
+    <li class="nav-item"><a class="nav-link <%= active === 'gamification' ? 'active' : '' %>" href="<%= basePath %>/admin/gamification"><i class="bi bi-trophy"></i> Overview</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'achievements' ? 'active' : '' %>" href="<%= basePath %>/admin/achievements"><i class="bi bi-award"></i> Achievements</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'leaderboard' ? 'active' : '' %>" href="<%= basePath %>/admin/leaderboard"><i class="bi bi-bar-chart"></i> Leaderboard</a></li>
+    <div class="nav-divider"></div>
+    <div class="nav-section">Training Content</div>
+    <li class="nav-item"><a class="nav-link <%= active === 'scenarios' ? 'active' : '' %>" href="<%= basePath %>/admin/scenarios"><i class="bi bi-collection-play"></i> Scenarios</a></li>
+    <div class="nav-divider"></div>
     <div class="nav-section">System</div>
+    <li class="nav-item"><a class="nav-link <%= active === 'users' ? 'active' : '' %>" href="<%= basePath %>/admin/users"><i class="bi bi-people"></i> Users</a></li>
+    <li class="nav-item"><a class="nav-link <%= active === 'audit-logs' ? 'active' : '' %>" href="<%= basePath %>/admin/audit-logs"><i class="bi bi-journal-text"></i> Audit Logs</a></li>
     <li class="nav-item"><a class="nav-link <%= active === 'settings' ? 'active' : '' %>" href="<%= basePath %>/admin/settings"><i class="bi bi-gear"></i> Settings</a></li>
     <li class="nav-item"><a class="nav-link <%= active === 'features' ? 'active' : '' %>" href="<%= basePath %>/admin/features"><i class="bi bi-toggles"></i> Features</a></li>
   </ul>
 </nav>
+<script>
+(function() {
+  const sidebar = document.querySelector('.sidebar');
+  const STORAGE_KEY = 'sellmeapen_sidebar_scroll';
+
+  if (!sidebar) return;
+
+  // Restore scroll position on page load
+  const savedPosition = localStorage.getItem(STORAGE_KEY);
+  if (savedPosition) {
+    sidebar.scrollTop = parseInt(savedPosition, 10);
+  } else {
+    // If no saved position, scroll active item into view
+    const activeLink = sidebar.querySelector('.nav-link.active');
+    if (activeLink) {
+      activeLink.scrollIntoView({ block: 'center', behavior: 'instant' });
+    }
+  }
+
+  // Save scroll position on scroll
+  sidebar.addEventListener('scroll', function() {
+    localStorage.setItem(STORAGE_KEY, sidebar.scrollTop);
+  });
+
+  // Save scroll position before navigating
+  sidebar.querySelectorAll('.nav-link').forEach(link => {
+    link.addEventListener('click', function() {
+      localStorage.setItem(STORAGE_KEY, sidebar.scrollTop);
+    });
+  });
+})();
+</script>

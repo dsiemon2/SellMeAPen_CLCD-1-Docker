@@ -95,6 +95,26 @@ document.addEventListener('DOMContentLoaded', () => {
 - Frontend: EJS templates + Bootstrap 5 + Bootstrap Icons
 - Real-time: WebSockets (OpenAI Realtime API)
 
+### Sidebar Scrollbar
+All admin pages include scrollbar support with position persistence:
+```css
+.sidebar {
+  min-height: 100vh;
+  max-height: 100vh;
+  overflow-y: auto;
+  position: sticky;
+  top: 0;
+}
+```
+
+```javascript
+// Scroll position persisted to localStorage
+const STORAGE_KEY = 'sellmeapen_sidebar_scroll';
+sidebar.addEventListener('scroll', () => {
+  localStorage.setItem(STORAGE_KEY, sidebar.scrollTop);
+});
+```
+
 ## File Structure
 - `src/` - Backend TypeScript source
 - `views/` - EJS templates

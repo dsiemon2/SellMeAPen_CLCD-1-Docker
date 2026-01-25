@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leaderboard - Sell Me a Pen Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root {
+      --sidebar-bg: <%= branding?.primaryColor || '#4f46e5' %>;
+    }
+    .sidebar { min-height: 100vh; background: var(--sidebar-bg); }
+    .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1rem; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+    .sidebar .nav-link i { margin-right: 0.5rem; }
+    .main-content { background: #f8f9fa; min-height: 100vh; }
+    .nav-divider { border-top: 1px solid rgba(255,255,255,0.2); margin: 0.5rem 0; }
+    .nav-section { color: rgba(255,255,255,0.5); font-size: 0.75rem; padding: 0.5rem 1rem; text-transform: uppercase; }
+    .rank-1 { background: linear-gradient(135deg, #ffd700 0%, #ffec8b 100%); }
+    .rank-2 { background: linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 100%); }
+    .rank-3 { background: linear-gradient(135deg, #cd7f32 0%, #daa06d 100%); }
+    .rank-badge { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: bold; }
+    .level-badge { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; }
+    .points-display { font-size: 1.5rem; font-weight: bold; color: #4f46e5; }
+    .stat-card { transition: transform 0.2s; }
+    .stat-card:hover { transform: translateY(-3px); }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <%- include('_sidebar', { active: 'leaderboard', basePath, branding }) %>
+
+      <main class="col-md-10 ms-sm-auto main-content p-4">
+        <h2 class="mb-4"><i class="bi bi-bar-chart text-primary me-2"></i>Leaderboard</h2>
+
+        <p class="text-muted mb-4">View top performers across different time periods.</p>
+
+        <!-- Summary Stats -->
+        <div class="row mb-4">
+          <div class="col-md-3">
+            <div class="card stat-card border-0 shadow-sm">
+              <div class="card-body text-center">
+                <i class="bi bi-people text-primary mb-2" style="font-size: 2rem;"></i>
+                <h3 class="mb-0"><%= stats.totalUsers %></h3>
+                <small class="text-muted">Total Users</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card stat-card border-0 shadow-sm">
+              <div class="card-body text-center">
+                <i class="bi bi-star text-warning mb-2" style="font-size: 2rem;"></i>
+                <h3 class="mb-0"><%= stats.totalPoints.toLocaleString() %></h3>
+                <small class="text-muted">Total Points Earned</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card stat-card border-0 shadow-sm">
+              <div class="card-body text-center">
+                <i class="bi bi-trophy text-success mb-2" style="font-size: 2rem;"></i>
+                <h3 class="mb-0"><%= stats.achievementsUnlocked %></h3>
+                <small class="text-muted">Achievements Unlocked</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="card stat-card border-0 shadow-sm">
+              <div class="card-body text-center">
+                <i class="bi bi-fire text-danger mb-2" style="font-size: 2rem;"></i>
+                <h3 class="mb-0"><%= stats.longestStreak %></h3>
+                <small class="text-muted">Longest Streak</small>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Period Tabs -->
+        <ul class="nav nav-tabs mb-3" id="periodTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="daily-tab" data-bs-toggle="tab" data-bs-target="#daily" type="button" role="tab" data-period="daily">
+              <i class="bi bi-calendar-day me-1"></i>Daily
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="weekly-tab" data-bs-toggle="tab" data-bs-target="#weekly" type="button" role="tab" data-period="weekly">
+              <i class="bi bi-calendar-week me-1"></i>Weekly
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="monthly-tab" data-bs-toggle="tab" data-bs-target="#monthly" type="button" role="tab" data-period="monthly">
+              <i class="bi bi-calendar-month me-1"></i>Monthly
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="alltime-tab" data-bs-toggle="tab" data-bs-target="#alltime" type="button" role="tab" data-period="alltime">
+              <i class="bi bi-infinity me-1"></i>All Time
+            </button>
+          </li>
+        </ul>
+
+        <!-- Leaderboard Card -->
+        <div class="card shadow-sm">
+          <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h5 class="mb-0" id="leaderboardTitle"><i class="bi bi-trophy me-2"></i>Daily Leaderboard</h5>
+            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="tooltip" title="Export leaderboard to CSV" onclick="exportLeaderboard()">
+              <i class="bi bi-download"></i> Export CSV
+            </button>
+          </div>
+          <div class="card-body p-0">
+            <table class="table table-hover mb-0" id="leaderboardTable">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 80px;">Rank</th>
+                  <th>User</th>
+                  <th>Level</th>
+                  <th>Points</th>
+                  <th>Sessions</th>
+                  <th>Streak</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboardBody">
+                <% if (leaderboard.length === 0) { %>
+                <tr>
+                  <td colspan="6" class="text-center text-muted py-4">
+                    No data for this period yet.
+                  </td>
+                </tr>
+                <% } %>
+                <% leaderboard.forEach((entry, index) => { %>
+                <tr class="<%= index < 3 ? 'table-' + (index === 0 ? 'warning' : index === 1 ? 'secondary' : 'light') : '' %>">
+                  <td>
+                    <% if (index === 0) { %>
+                    <span class="rank-badge rank-1"><i class="bi bi-trophy-fill text-dark"></i></span>
+                    <% } else if (index === 1) { %>
+                    <span class="rank-badge rank-2"><i class="bi bi-trophy-fill text-dark"></i></span>
+                    <% } else if (index === 2) { %>
+                    <span class="rank-badge rank-3"><i class="bi bi-trophy-fill text-white"></i></span>
+                    <% } else { %>
+                    <span class="rank-badge bg-light text-dark"><%= index + 1 %></span>
+                    <% } %>
+                  </td>
+                  <td>
+                    <div class="d-flex align-items-center">
+                      <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-2" style="width: 36px; height: 36px;">
+                        <%= entry.userName ? entry.userName.charAt(0).toUpperCase() : '?' %>
+                      </div>
+                      <div>
+                        <strong><%= entry.userName || 'Unknown User' %></strong>
+                        <div class="small text-muted"><%= entry.userId.substring(0, 8) %>...</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td><span class="level-badge">Lv. <%= entry.level %></span></td>
+                  <td class="points-display"><%= entry.points.toLocaleString() %></td>
+                  <td><%= entry.sessionsCompleted || 0 %></td>
+                  <td>
+                    <% if (entry.currentStreak > 0) { %>
+                    <span class="badge bg-danger"><i class="bi bi-fire"></i> <%= entry.currentStreak %> days</span>
+                    <% } else { %>
+                    <span class="text-muted">-</span>
+                    <% } %>
+                  </td>
+                </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+          <div class="card-footer bg-white text-muted small">
+            <i class="bi bi-info-circle me-1"></i>
+            Showing top <%= leaderboard.length %> users. Points reset: Daily at midnight, Weekly on Mondays, Monthly on 1st.
+          </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="card mt-4 shadow-sm">
+          <div class="card-header bg-light">
+            <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Points Activity</h5>
+          </div>
+          <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>User</th>
+                  <th>Points</th>
+                  <th>Reason</th>
+                  <th>Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% if (recentActivity.length === 0) { %>
+                <tr>
+                  <td colspan="4" class="text-center text-muted py-3">No recent activity</td>
+                </tr>
+                <% } %>
+                <% recentActivity.forEach(activity => { %>
+                <tr>
+                  <td><%= activity.userName || 'Unknown' %></td>
+                  <td><span class="badge bg-success">+<%= activity.points %></span></td>
+                  <td>
+                    <% if (activity.reason === 'session_complete') { %>
+                    <i class="bi bi-check-circle text-success me-1"></i>Session Complete
+                    <% } else if (activity.reason === 'achievement') { %>
+                    <i class="bi bi-trophy text-warning me-1"></i>Achievement
+                    <% } else if (activity.reason.startsWith('streak')) { %>
+                    <i class="bi bi-fire text-danger me-1"></i>Streak Bonus
+                    <% } else { %>
+                    <%= activity.reason %>
+                    <% } %>
+                  </td>
+                  <td class="text-muted small"><%= new Date(activity.createdAt).toLocaleString() %></td>
+                </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const basePath = '<%= typeof basePath !== "undefined" ? basePath : "" %>';
+    let currentPeriod = 'daily';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+      tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+    });
+
+    // Handle tab changes
+    document.querySelectorAll('#periodTabs button').forEach(btn => {
+      btn.addEventListener('click', async function() {
+        currentPeriod = this.dataset.period;
+        document.getElementById('leaderboardTitle').innerHTML =
+          `<i class="bi bi-trophy me-2"></i>${currentPeriod.charAt(0).toUpperCase() + currentPeriod.slice(1)} Leaderboard`;
+
+        try {
+          const res = await fetch(`${basePath}/admin/leaderboard/data?period=${currentPeriod}`);
+          if (res.ok) {
+            const data = await res.json();
+            updateLeaderboardTable(data.leaderboard);
+          }
+        } catch (err) {
+          console.error('Error fetching leaderboard:', err);
+        }
+      });
+    });
+
+    function updateLeaderboardTable(leaderboard) {
+      const tbody = document.getElementById('leaderboardBody');
+      if (leaderboard.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">No data for this period yet.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = leaderboard.map((entry, index) => `
+        <tr class="${index < 3 ? 'table-' + (index === 0 ? 'warning' : index === 1 ? 'secondary' : 'light') : ''}">
+          <td>
+            ${index === 0 ? '<span class="rank-badge rank-1"><i class="bi bi-trophy-fill text-dark"></i></span>' :
+              index === 1 ? '<span class="rank-badge rank-2"><i class="bi bi-trophy-fill text-dark"></i></span>' :
+              index === 2 ? '<span class="rank-badge rank-3"><i class="bi bi-trophy-fill text-white"></i></span>' :
+              `<span class="rank-badge bg-light text-dark">${index + 1}</span>`}
+          </td>
+          <td>
+            <div class="d-flex align-items-center">
+              <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-2" style="width: 36px; height: 36px;">
+                ${entry.userName ? entry.userName.charAt(0).toUpperCase() : '?'}
+              </div>
+              <div>
+                <strong>${entry.userName || 'Unknown User'}</strong>
+                <div class="small text-muted">${entry.userId.substring(0, 8)}...</div>
+              </div>
+            </div>
+          </td>
+          <td><span class="level-badge">Lv. ${entry.level}</span></td>
+          <td class="points-display">${entry.points.toLocaleString()}</td>
+          <td>${entry.sessionsCompleted || 0}</td>
+          <td>
+            ${entry.currentStreak > 0 ?
+              `<span class="badge bg-danger"><i class="bi bi-fire"></i> ${entry.currentStreak} days</span>` :
+              '<span class="text-muted">-</span>'}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function exportLeaderboard() {
+      const rows = [['Rank', 'User', 'Level', 'Points', 'Sessions', 'Streak']];
+      document.querySelectorAll('#leaderboardBody tr').forEach((tr, idx) => {
+        const cells = tr.querySelectorAll('td');
+        if (cells.length >= 6) {
+          rows.push([
+            idx + 1,
+            cells[1].textContent.trim().split('\n')[0],
+            cells[2].textContent.trim(),
+            cells[3].textContent.trim(),
+            cells[4].textContent.trim(),
+            cells[5].textContent.trim()
+          ]);
+        }
+      });
+
+      const csv = rows.map(r => r.join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `leaderboard-${currentPeriod}-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>

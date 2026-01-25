@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../db/prisma.js';
 import crypto from 'crypto';
+import bcrypt from 'bcrypt';
 
 // Extend Express Request to include user
 declare global {
@@ -11,19 +12,35 @@ declare global {
         email: string;
         name: string;
         role: string;
+        mfaEnabled: boolean;
+        passwordHash: string;
       };
       sessionToken?: string;
     }
   }
 }
 
-// Simple password hashing (for demo - use bcrypt in production)
-export function hashPassword(password: string): string {
-  return crypto.createHash('sha256').update(password).digest('hex');
+const SALT_ROUNDS = 12;
+
+// Secure password hashing with bcrypt
+export async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, SALT_ROUNDS);
 }
 
-export function verifyPassword(password: string, hash: string): boolean {
-  return hashPassword(password) === hash;
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  // Support both bcrypt hashes (start with $2) and legacy SHA256 hashes (64 hex chars)
+  if (hash.startsWith('$2')) {
+    return bcrypt.compare(password, hash);
+  }
+  // Legacy SHA256 support for migration - compare and return true if match
+  // After verifying, the calling code should upgrade the hash
+  const sha256Hash = crypto.createHash('sha256').update(password).digest('hex');
+  return sha256Hash === hash;
+}
+
+// Check if a hash is legacy SHA256 (for migration purposes)
+export function isLegacyHash(hash: string): boolean {
+  return !hash.startsWith('$2') && hash.length === 64;
 }
 
 // Generate session token
@@ -64,7 +81,9 @@ export async function loadUser(req: Request, res: Response, next: NextFunction) 
         id: session.user.id,
         email: session.user.email,
         name: session.user.name,
-        role: session.user.role
+        role: session.user.role,
+        mfaEnabled: session.user.mfaEnabled,
+        passwordHash: session.user.passwordHash
       };
       req.sessionToken = token;
       res.locals.user = req.user;

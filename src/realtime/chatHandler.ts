@@ -1,10 +1,54 @@
 import { WebSocket } from 'ws';
+import { IncomingMessage } from 'http';
 import pino from 'pino';
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../db/prisma.js';
 import { detectSaleOutcome, detectUserSaleOutcome } from '../services/saleAnalyzer.js';
+import { awardSessionPoints, updateStreak } from '../services/gamificationService.js';
+import { checkAchievements } from '../services/achievementChecker.js';
+import { analyzeSpeechForSession, generateSpeechTips } from '../services/speechAnalyzer.js';
+import { calculateSessionScore } from '../services/scoreCalculator.js';
 
 const logger = pino();
+
+// Parse cookies from HTTP request
+function parseCookies(cookieHeader: string | undefined): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  if (!cookieHeader) return cookies;
+
+  cookieHeader.split(';').forEach(cookie => {
+    const [name, ...rest] = cookie.trim().split('=');
+    if (name && rest.length > 0) {
+      cookies[name] = decodeURIComponent(rest.join('='));
+    }
+  });
+
+  return cookies;
+}
+
+// Get user from session token
+async function getUserFromRequest(request: IncomingMessage): Promise<{ id: string; name: string } | null> {
+  try {
+    const cookies = parseCookies(request.headers.cookie);
+    const token = cookies['session_token'];
+
+    if (!token) return null;
+
+    const session = await prisma.userSession.findUnique({
+      where: { token },
+      include: { user: true }
+    });
+
+    if (session && session.expiresAt > new Date() && session.user.isActive) {
+      return { id: session.user.id, name: session.user.name };
+    }
+
+    return null;
+  } catch (err) {
+    logger.error({ err }, 'Error getting user from request');
+    return null;
+  }
+}
 
 // Difficulty-based customer personas for "User Sells" mode
 const customerPersonas: Record<string, string> = {
@@ -53,7 +97,7 @@ You are EXTREMELY challenging:
 - Be tough but not impossible - Jordan Belfort could sell you this pen`
 };
 
-export async function handleChatConnection(clientWs: WebSocket) {
+export async function handleChatConnection(clientWs: WebSocket, request?: IncomingMessage) {
   logger.info('New chat client connected');
 
   const sessionId = uuidv4();
@@ -64,6 +108,16 @@ export async function handleChatConnection(clientWs: WebSocket) {
   let bufferedAssistantTranscript: string[] = [];
   let salesMode = 'ai_sells';
   let difficulty = 'medium';
+  let userId: string | null = null;
+
+  // Get authenticated user from request
+  if (request) {
+    const user = await getUserFromRequest(request);
+    if (user) {
+      userId = user.id;
+      logger.info({ userId, userName: user.name }, 'Authenticated user connected');
+    }
+  }
 
   try {
     // Load configuration
@@ -84,6 +138,7 @@ export async function handleChatConnection(clientWs: WebSocket) {
     const dbSession = await prisma.salesSession.create({
       data: {
         sessionId,
+        userId: userId || undefined,
         currentPhase: 'greeting'
       }
     });
@@ -364,6 +419,11 @@ IMPORTANT RULES:
                     }));
                     logger.info({ reasoning: analysis.reasoning }, 'User sells - Sale confirmed!');
 
+                    // Gamification: Award points and check achievements
+                    if (userId) {
+                      await processSessionGamification(userId, dbSessionId, 'sale_made', clientWs);
+                    }
+
                   } else if (analysis.outcome === 'SALE_DENIED') {
                     await prisma.salesSession.update({
                       where: { id: dbSessionId },
@@ -380,6 +440,11 @@ IMPORTANT RULES:
                       message: analysis.popupMessage || 'The customer said no. Try a different approach!'
                     }));
                     logger.info({ reasoning: analysis.reasoning }, 'User sells - Sale denied!');
+
+                    // Gamification: Award points and check achievements
+                    if (userId) {
+                      await processSessionGamification(userId, dbSessionId, 'no_sale', clientWs);
+                    }
                   }
                 }
               } else if (salesMode === 'ai_sells') {
@@ -490,6 +555,11 @@ IMPORTANT RULES:
                       }));
                       logger.info({ reasoning: analysis.reasoning }, 'Sale confirmed!');
 
+                      // Gamification: Award points and check achievements
+                      if (userId) {
+                        await processSessionGamification(userId, dbSessionId, 'sale_made', clientWs);
+                      }
+
                     } else if (analysis.outcome === 'SALE_DENIED') {
                       await prisma.salesSession.update({
                         where: { id: dbSessionId },
@@ -506,6 +576,11 @@ IMPORTANT RULES:
                         message: analysis.popupMessage || 'The customer declined. Better luck next time!'
                       }));
                       logger.info({ reasoning: analysis.reasoning }, 'Sale denied!');
+
+                      // Gamification: Award points and check achievements
+                      if (userId) {
+                        await processSessionGamification(userId, dbSessionId, 'no_sale', clientWs);
+                      }
                     }
                   } else {
                     logger.info({ confidence: analysis.confidence }, 'Low confidence - continuing conversation');
@@ -545,6 +620,11 @@ IMPORTANT RULES:
                     message: 'You ended the session without making a sale. Keep practicing!'
                   }));
                   logger.info({ transcript: event.transcript }, 'User sells - User gave up');
+
+                  // Gamification: Award points and check achievements (even for gave up)
+                  if (userId) {
+                    await processSessionGamification(userId, dbSessionId, 'no_sale', clientWs);
+                  }
                 }
                 // Other sale detection happens in response.audio_transcript.done for user_sells mode
               }
@@ -667,5 +747,148 @@ async function logMessage(sessionId: string, role: string, content: string, phas
     });
   } catch (err) {
     logger.error({ err }, 'Error logging message');
+  }
+}
+
+/**
+ * Process gamification for a completed session
+ * - Award points based on session score
+ * - Update user streak
+ * - Check for new achievements
+ * - Analyze speech metrics
+ * - Send notifications to client
+ */
+async function processSessionGamification(
+  userId: string,
+  sessionId: string,
+  outcome: string,
+  clientWs: WebSocket
+) {
+  try {
+    logger.info({ userId, sessionId, outcome }, 'Processing gamification for session');
+
+    // Get session to find the sessionId (UUID)
+    const session = await prisma.salesSession.findUnique({
+      where: { id: sessionId }
+    });
+
+    if (!session) {
+      logger.warn({ sessionId }, 'Session not found for gamification');
+      return;
+    }
+
+    // Calculate the score using AI analysis
+    const score = await calculateSessionScore(session.sessionId);
+
+    if (!score) {
+      logger.warn({ sessionId }, 'Could not calculate score for gamification');
+      // Use a default score
+      const defaultScore = {
+        total: 50,
+        grade: 'C',
+        discovery: { score: 12, feedback: '', highlights: [], improvements: [] },
+        positioning: { score: 12, feedback: '', highlights: [], improvements: [] },
+        objections: { score: 13, feedback: '', highlights: [], improvements: [] },
+        closing: { score: 13, feedback: '', highlights: [], improvements: [] },
+        overallFeedback: '',
+        tips: [],
+        mode: 'ai_sells'
+      };
+
+      // Award points with default score
+      const pointsAwarded = await awardSessionPoints(
+        userId,
+        defaultScore,
+        outcome,
+        sessionId
+      );
+
+      logger.info({ userId, pointsAwarded, outcome }, 'Points awarded with default score');
+    } else {
+      // Award points with calculated score
+      const pointsAwarded = await awardSessionPoints(
+        userId,
+        score,
+        outcome,
+        sessionId
+      );
+
+      logger.info({ userId, pointsAwarded, outcome, grade: score.grade }, 'Points awarded for session');
+    }
+
+    // Update streak
+    const newStreak = await updateStreak(userId);
+    logger.info({ userId, newStreak }, 'Streak updated');
+
+    // Check for new achievements
+    const newAchievements = await checkAchievements(userId);
+
+    if (newAchievements.length > 0) {
+      logger.info({ userId, achievements: newAchievements.map(a => a.code) }, 'New achievements earned');
+
+      // Send achievement notifications to client
+      if (clientWs.readyState === WebSocket.OPEN) {
+        clientWs.send(JSON.stringify({
+          type: 'achievements_earned',
+          achievements: newAchievements.map(a => ({
+            code: a.code,
+            name: a.name,
+            description: a.description,
+            icon: a.icon,
+            tier: a.tier,
+            pointsReward: a.pointsReward
+          }))
+        }));
+      }
+    }
+
+    // Analyze speech metrics
+    const speechMetrics = await analyzeSpeechForSession(sessionId);
+
+    if (speechMetrics && clientWs.readyState === WebSocket.OPEN) {
+      const speechTips = generateSpeechTips(speechMetrics);
+
+      clientWs.send(JSON.stringify({
+        type: 'speech_analytics',
+        metrics: {
+          wordsPerMinute: speechMetrics.wordsPerMinute,
+          fillerWordPercentage: speechMetrics.fillerWordPercentage,
+          clarityScore: speechMetrics.clarityScore,
+          confidenceScore: speechMetrics.confidenceScore
+        },
+        tips: speechTips
+      }));
+
+      logger.info({
+        sessionId,
+        wpm: speechMetrics.wordsPerMinute,
+        fillerPct: speechMetrics.fillerWordPercentage,
+        clarity: speechMetrics.clarityScore,
+        confidence: speechMetrics.confidenceScore
+      }, 'Speech analytics processed');
+    }
+
+    // Send points notification
+    if (clientWs.readyState === WebSocket.OPEN) {
+      // Get updated user progress
+      const userPoints = await prisma.userPoints.findUnique({
+        where: { userId }
+      });
+
+      const pointsAwarded = score ?
+        (score.grade === 'A' ? 100 : score.grade === 'B' ? 75 : score.grade === 'C' ? 50 : score.grade === 'D' ? 25 : 10) :
+        50;
+
+      clientWs.send(JSON.stringify({
+        type: 'points_awarded',
+        points: pointsAwarded,
+        totalPoints: userPoints?.totalPoints || pointsAwarded,
+        level: userPoints?.level || 1,
+        streak: newStreak
+      }));
+    }
+
+  } catch (err) {
+    logger.error({ err, userId, sessionId }, 'Error processing session gamification');
   }
 }

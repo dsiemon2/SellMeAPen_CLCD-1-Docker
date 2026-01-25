@@ -151,6 +151,59 @@
       padding: 0.75rem 1.5rem;
       margin-bottom: 1rem;
     }
+    /* Gamification Styles */
+    .achievement-toast {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1050;
+      animation: slideIn 0.5s ease;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .points-badge {
+      background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+      color: #000;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+    .scenario-card {
+      background: rgba(255,255,255,0.1);
+      border: 2px solid transparent;
+      border-radius: 8px;
+      padding: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .scenario-card:hover {
+      background: rgba(255,255,255,0.15);
+    }
+    .scenario-card.selected {
+      border-color: #0d6efd;
+      background: rgba(13, 110, 253, 0.2);
+    }
+    .speech-metric {
+      text-align: center;
+      padding: 0.75rem;
+    }
+    .speech-metric .metric-value {
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+    .speech-metric .metric-label {
+      font-size: 0.75rem;
+      color: rgba(255,255,255,0.7);
+    }
+    .tip-item {
+      padding: 0.5rem 0.75rem;
+      background: rgba(255,255,255,0.05);
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+    }
   </style>
 </head>
 <body>
@@ -252,6 +305,15 @@
               <span class="mode-indicator bg-secondary ms-1" id="currentDiffIndicator" style="display: none;">Medium</span>
             </div>
           </div>
+        </div>
+
+        <!-- Scenario Selection (for user_sells mode) -->
+        <div class="mt-3" id="scenarioSection" style="display: none;">
+          <label class="form-label small text-muted"><i class="bi bi-collection-play me-1"></i>Training Scenario (Optional)</label>
+          <select class="form-select form-select-sm voice-select" id="scenarioSelect" onchange="setScenario(this.value)">
+            <option value="">Standard - Sell Me a Pen</option>
+          </select>
+          <small class="text-muted mt-1 d-block" id="scenarioDesc">Select a specific training scenario or use standard mode</small>
         </div>
       </div>
     </div>
@@ -406,8 +468,59 @@
             <h6><i class="bi bi-lightbulb"></i> Tips for Improvement</h6>
             <ul class="list-group list-group-flush bg-transparent" id="tipsList"></ul>
           </div>
+
+          <!-- Speech Coaching Tab -->
+          <div id="speechCoachingContent" style="display: none;">
+            <div class="text-center mb-4">
+              <h5><i class="bi bi-mic me-2"></i>Speech Analysis</h5>
+              <p class="text-muted small">How you sounded during the conversation</p>
+            </div>
+
+            <div class="row g-3 mb-4">
+              <div class="col-md-3 col-6">
+                <div class="speech-metric">
+                  <div class="metric-value text-info" id="speechWpm">--</div>
+                  <div class="metric-label">Words/Min</div>
+                </div>
+              </div>
+              <div class="col-md-3 col-6">
+                <div class="speech-metric">
+                  <div class="metric-value text-warning" id="speechFiller">--</div>
+                  <div class="metric-label">Filler Words %</div>
+                </div>
+              </div>
+              <div class="col-md-3 col-6">
+                <div class="speech-metric">
+                  <div class="metric-value text-success" id="speechClarity">--</div>
+                  <div class="metric-label">Clarity Score</div>
+                </div>
+              </div>
+              <div class="col-md-3 col-6">
+                <div class="speech-metric">
+                  <div class="metric-value text-primary" id="speechConfidence">--</div>
+                  <div class="metric-label">Confidence</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Speech Tips -->
+            <div id="speechTipsContainer">
+              <h6><i class="bi bi-chat-quote me-2"></i>Speech Tips</h6>
+              <div id="speechTipsList"></div>
+            </div>
+
+            <div class="alert alert-info mt-3">
+              <i class="bi bi-info-circle me-2"></i>
+              <strong>Ideal speech:</strong> 120-150 WPM, under 3% filler words, clear and confident delivery.
+            </div>
+          </div>
         </div>
         <div class="modal-footer border-secondary">
+          <div class="me-auto">
+            <button type="button" class="btn btn-outline-info btn-sm" id="toggleSpeechBtn" onclick="toggleSpeechCoaching()">
+              <i class="bi bi-mic"></i> Speech Coaching
+            </button>
+          </div>
           <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Close</button>
           <button type="button" class="btn btn-primary" onclick="location.reload()">
             <i class="bi bi-arrow-repeat"></i> Try Again
@@ -452,7 +565,10 @@
     let currentMode = 'ai_sells';
     let currentDifficulty = 'medium';
     let currentVoice = 'alloy';
+    let currentScenario = '';
     let settingsCollapsed = false;
+    let speechData = null;
+    let showingSpeechCoaching = false;
 
     // Difficulty descriptions
     const difficultyDescs = {
@@ -478,13 +594,146 @@
       }
     }
 
+    // Load available scenarios
+    async function loadScenarios() {
+      try {
+        const res = await fetch(APP_BASE_PATH + '/api/gamification/scenarios');
+        const data = await res.json();
+        if (data.success && data.scenarios) {
+          const select = document.getElementById('scenarioSelect');
+          const categories = {};
+
+          // Group by category
+          data.scenarios.forEach(s => {
+            if (!categories[s.category]) categories[s.category] = [];
+            categories[s.category].push(s);
+          });
+
+          // Add options grouped by category
+          Object.keys(categories).sort().forEach(cat => {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = cat.charAt(0).toUpperCase() + cat.slice(1).replace('_', ' ');
+
+            categories[cat].forEach(s => {
+              const opt = document.createElement('option');
+              opt.value = s.id;
+              opt.textContent = `${s.name} (${s.difficulty})`;
+              opt.title = s.description;
+              optgroup.appendChild(opt);
+            });
+
+            select.appendChild(optgroup);
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load scenarios:', err);
+      }
+    }
+
+    function setScenario(scenarioId) {
+      currentScenario = scenarioId;
+      const select = document.getElementById('scenarioSelect');
+      const option = select.options[select.selectedIndex];
+      document.getElementById('scenarioDesc').textContent = option.title || 'Standard sales training mode';
+    }
+
+    // Show achievement toast
+    function showAchievementToast(achievement) {
+      const toast = document.createElement('div');
+      toast.className = 'achievement-toast';
+      toast.innerHTML = `
+        <div class="card bg-dark border-warning" style="min-width: 280px;">
+          <div class="card-body p-3">
+            <div class="d-flex align-items-center gap-3">
+              <div style="font-size: 2rem;"><i class="bi ${achievement.icon} text-warning"></i></div>
+              <div>
+                <div class="small text-warning">Achievement Unlocked!</div>
+                <div class="fw-bold">${achievement.name}</div>
+                <small class="text-muted">${achievement.description}</small>
+                <div class="text-warning small">+${achievement.pointsReward} XP</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(toast);
+
+      // Remove after 5 seconds
+      setTimeout(() => {
+        toast.style.animation = 'slideIn 0.5s ease reverse';
+        setTimeout(() => toast.remove(), 500);
+      }, 5000);
+    }
+
+    // Show points awarded notification
+    function showPointsAwarded(points, totalPoints, level, streak) {
+      const toast = document.createElement('div');
+      toast.className = 'achievement-toast';
+      toast.style.top = '80px';
+      toast.innerHTML = `
+        <div class="card bg-dark border-success" style="min-width: 200px;">
+          <div class="card-body p-2 text-center">
+            <div class="text-success fw-bold">+${points} XP</div>
+            <small class="text-muted">Total: ${totalPoints} | Level ${level}</small>
+            ${streak > 1 ? `<div class="text-warning small"><i class="bi bi-fire"></i> ${streak} day streak!</div>` : ''}
+          </div>
+        </div>
+      `;
+      document.body.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.animation = 'slideIn 0.5s ease reverse';
+        setTimeout(() => toast.remove(), 500);
+      }, 3000);
+    }
+
+    // Toggle speech coaching view
+    function toggleSpeechCoaching() {
+      showingSpeechCoaching = !showingSpeechCoaching;
+      document.getElementById('scorecardContent').style.display = showingSpeechCoaching ? 'none' : 'block';
+      document.getElementById('speechCoachingContent').style.display = showingSpeechCoaching ? 'block' : 'none';
+      document.getElementById('toggleSpeechBtn').innerHTML = showingSpeechCoaching
+        ? '<i class="bi bi-clipboard-data"></i> Performance'
+        : '<i class="bi bi-mic"></i> Speech Coaching';
+    }
+
+    // Display speech analytics
+    function displaySpeechAnalytics(metrics, tips) {
+      speechData = { metrics, tips };
+
+      document.getElementById('speechWpm').textContent = Math.round(metrics.wordsPerMinute || 0);
+      document.getElementById('speechFiller').textContent = (metrics.fillerWordPercentage || 0).toFixed(1) + '%';
+      document.getElementById('speechClarity').textContent = Math.round(metrics.clarityScore || 0) + '%';
+      document.getElementById('speechConfidence').textContent = Math.round(metrics.confidenceScore || 0) + '%';
+
+      // Color code based on values
+      const wpmEl = document.getElementById('speechWpm');
+      const wpm = metrics.wordsPerMinute || 0;
+      wpmEl.className = 'metric-value ' + (wpm >= 120 && wpm <= 150 ? 'text-success' : wpm < 100 || wpm > 170 ? 'text-danger' : 'text-warning');
+
+      const fillerEl = document.getElementById('speechFiller');
+      const filler = metrics.fillerWordPercentage || 0;
+      fillerEl.className = 'metric-value ' + (filler < 3 ? 'text-success' : filler > 7 ? 'text-danger' : 'text-warning');
+
+      // Display tips
+      const tipsContainer = document.getElementById('speechTipsList');
+      tipsContainer.innerHTML = '';
+      (tips || []).forEach(tip => {
+        const div = document.createElement('div');
+        div.className = 'tip-item';
+        div.innerHTML = '<i class="bi bi-arrow-right-circle text-info me-2"></i>' + tip;
+        tipsContainer.appendChild(div);
+      });
+    }
+
     function updateSettingsUI() {
       // Update mode buttons
       document.getElementById('modeAiSells').classList.toggle('active', currentMode === 'ai_sells');
       document.getElementById('modeUserSells').classList.toggle('active', currentMode === 'user_sells');
 
-      // Show/hide difficulty section
+      // Show/hide difficulty and scenario sections
       document.getElementById('difficultySection').style.display = currentMode === 'user_sells' ? '' : 'none';
+      document.getElementById('scenarioSection').style.display = currentMode === 'user_sells' ? '' : 'none';
 
       // Update difficulty buttons
       document.querySelectorAll('.difficulty-btn').forEach(btn => {
@@ -552,8 +801,9 @@
       document.getElementById('settingsToggleIcon').className = 'bi bi-chevron-' + (settingsCollapsed ? 'down' : 'up');
     }
 
-    // Load config when page loads
+    // Load config and scenarios when page loads
     loadConfig();
+    loadScenarios();
 
     // Create visualizer bars
     for (let i = 0; i < 20; i++) {
@@ -732,6 +982,25 @@
 
             case 'sale_denied':
               showDenied(data.headline, data.message);
+              break;
+
+            case 'achievements_earned':
+              // Show achievement toasts
+              if (data.achievements && data.achievements.length > 0) {
+                data.achievements.forEach((achievement, index) => {
+                  setTimeout(() => showAchievementToast(achievement), index * 1000);
+                });
+              }
+              break;
+
+            case 'points_awarded':
+              // Show points notification
+              showPointsAwarded(data.points, data.totalPoints, data.level, data.streak);
+              break;
+
+            case 'speech_analytics':
+              // Store speech data for scorecard
+              displaySpeechAnalytics(data.metrics, data.tips);
               break;
 
             case 'error':

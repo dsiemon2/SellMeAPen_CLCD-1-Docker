@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audit Logs - Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root {
+      --sidebar-bg: <%= branding?.primaryColor || '#4f46e5' %>;
+    }
+    .sidebar { min-height: 100vh; background: var(--sidebar-bg); }
+    .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1rem; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+    .sidebar .nav-link i { margin-right: 0.5rem; }
+    .main-content { background: #f8f9fa; min-height: 100vh; }
+    .nav-divider { border-top: 1px solid rgba(255,255,255,0.2); margin: 0.5rem 0; }
+    .nav-section { color: rgba(255,255,255,0.5); font-size: 0.75rem; padding: 0.5rem 1rem; text-transform: uppercase; }
+    .log-details { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .action-badge {
+      font-size: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <%- include('_sidebar', { active: 'audit-logs', basePath, branding }) %>
+
+      <main class="col-md-10 ms-sm-auto main-content p-4">
+        <h2 class="mb-4"><i class="bi bi-journal-text text-primary me-2"></i>Audit Logs</h2>
+
+        <p class="text-muted mb-4">Track all administrative actions and changes made to the system.</p>
+
+        <!-- Filters -->
+        <div class="card mb-4">
+          <div class="card-body">
+            <div class="row g-3 align-items-end">
+              <div class="col-md-3">
+                <label class="form-label">Action</label>
+                <select class="form-select" id="actionFilter" data-bs-toggle="tooltip" title="Filter by action type">
+                  <option value="">All Actions</option>
+                  <option value="login">Login</option>
+                  <option value="logout">Logout</option>
+                  <option value="create">Create</option>
+                  <option value="update">Update</option>
+                  <option value="delete">Delete</option>
+                  <option value="toggle">Toggle</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Resource</label>
+                <select class="form-select" id="resourceFilter" data-bs-toggle="tooltip" title="Filter by resource type">
+                  <option value="">All Resources</option>
+                  <option value="users">Users</option>
+                  <option value="sessions">Sessions</option>
+                  <option value="techniques">Techniques</option>
+                  <option value="objections">Objections</option>
+                  <option value="closing">Closing</option>
+                  <option value="positioning">Positioning</option>
+                  <option value="config">Config</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">User</label>
+                <input type="text" class="form-control" id="userFilter" placeholder="Search by email..." data-bs-toggle="tooltip" title="Filter by user email">
+              </div>
+              <div class="col-md-3">
+                <button class="btn btn-outline-primary w-100" onclick="applyFilters()" data-bs-toggle="tooltip" title="Apply filters">
+                  <i class="bi bi-funnel"></i> Apply Filters
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Logs Table -->
+        <div class="card">
+          <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Activity Log</h5>
+            <span class="badge bg-secondary"><%= pagination.total %> total entries</span>
+          </div>
+          <div class="card-body p-0">
+            <table class="table table-hover table-sm mb-0" id="logsTable">
+              <thead class="table-light">
+                <tr>
+                  <th>Timestamp</th>
+                  <th>User</th>
+                  <th>Action</th>
+                  <th>Resource</th>
+                  <th>Resource ID</th>
+                  <th>IP Address</th>
+                  <th>Status</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody">
+                <% logs.forEach(log => { %>
+                <tr>
+                  <td>
+                    <small class="text-muted">
+                      <%= new Date(log.createdAt).toLocaleDateString() %><br>
+                      <%= new Date(log.createdAt).toLocaleTimeString() %>
+                    </small>
+                  </td>
+                  <td>
+                    <% if (log.userEmail) { %>
+                      <small><%= log.userEmail %></small>
+                    <% } else { %>
+                      <small class="text-muted">System</small>
+                    <% } %>
+                  </td>
+                  <td>
+                    <span class="badge action-badge bg-<%=
+                      log.action === 'login' ? 'success' :
+                      log.action === 'logout' ? 'secondary' :
+                      log.action === 'create' ? 'primary' :
+                      log.action === 'update' ? 'info' :
+                      log.action === 'delete' ? 'danger' :
+                      log.action === 'toggle' ? 'warning text-dark' :
+                      'secondary'
+                    %>">
+                      <%= log.action %>
+                    </span>
+                  </td>
+                  <td><code><%= log.resource %></code></td>
+                  <td>
+                    <% if (log.resourceId) { %>
+                      <small class="text-muted"><%= log.resourceId.substring(0, 8) %>...</small>
+                    <% } else { %>
+                      <small class="text-muted">-</small>
+                    <% } %>
+                  </td>
+                  <td><small class="text-muted"><%= log.ipAddress || '-' %></small></td>
+                  <td>
+                    <span class="badge bg-<%= log.success ? 'success' : 'danger' %>">
+                      <%= log.success ? 'OK' : 'Failed' %>
+                    </span>
+                  </td>
+                  <td>
+                    <% if (log.details && log.details !== '{}') { %>
+                      <button class="btn btn-sm btn-outline-secondary"
+                              data-bs-toggle="modal"
+                              data-bs-target="#detailsModal"
+                              onclick="showDetails('<%= encodeURIComponent(log.details) %>')"
+                              title="View details">
+                        <i class="bi bi-eye"></i>
+                      </button>
+                    <% } else { %>
+                      <small class="text-muted">-</small>
+                    <% } %>
+                  </td>
+                </tr>
+                <% }) %>
+                <% if (logs.length === 0) { %>
+                <tr>
+                  <td colspan="8" class="text-center text-muted py-4">
+                    No audit logs found.
+                  </td>
+                </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <div class="text-muted small">
+              Showing page <strong><%= pagination.page %></strong> of <strong><%= pagination.totalPages %></strong>
+              (<%= pagination.total %> total entries)
+            </div>
+            <nav>
+              <ul class="pagination pagination-sm mb-0">
+                <li class="page-item <%= pagination.page <= 1 ? 'disabled' : '' %>">
+                  <a class="page-link" href="?page=<%= pagination.page - 1 %>&limit=<%= pagination.limit %>">
+                    <i class="bi bi-chevron-left"></i>
+                  </a>
+                </li>
+                <% for (let i = Math.max(1, pagination.page - 2); i <= Math.min(pagination.totalPages, pagination.page + 2); i++) { %>
+                <li class="page-item <%= i === pagination.page ? 'active' : '' %>">
+                  <a class="page-link" href="?page=<%= i %>&limit=<%= pagination.limit %>"><%= i %></a>
+                </li>
+                <% } %>
+                <li class="page-item <%= pagination.page >= pagination.totalPages ? 'disabled' : '' %>">
+                  <a class="page-link" href="?page=<%= pagination.page + 1 %>&limit=<%= pagination.limit %>">
+                    <i class="bi bi-chevron-right"></i>
+                  </a>
+                </li>
+              </ul>
+            </nav>
+            <div>
+              <select class="form-select form-select-sm" id="pageSize" style="width: auto;" onchange="changePageSize()" data-bs-toggle="tooltip" title="Entries per page">
+                <option value="25" <%= pagination.limit === 25 ? 'selected' : '' %>>25 / page</option>
+                <option value="50" <%= pagination.limit === 50 ? 'selected' : '' %>>50 / page</option>
+                <option value="100" <%= pagination.limit === 100 ? 'selected' : '' %>>100 / page</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Details Modal -->
+  <div class="modal fade" id="detailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-code me-2"></i>Log Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <pre id="detailsContent" class="bg-light p-3 rounded" style="max-height: 400px; overflow: auto;"></pre>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const basePath = '<%= typeof basePath !== "undefined" ? basePath : "" %>';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+      tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+    });
+
+    function showDetails(encoded) {
+      try {
+        const details = JSON.parse(decodeURIComponent(encoded));
+        document.getElementById('detailsContent').textContent = JSON.stringify(details, null, 2);
+      } catch (e) {
+        document.getElementById('detailsContent').textContent = decodeURIComponent(encoded);
+      }
+    }
+
+    function applyFilters() {
+      const action = document.getElementById('actionFilter').value;
+      const resource = document.getElementById('resourceFilter').value;
+      const user = document.getElementById('userFilter').value;
+
+      const params = new URLSearchParams();
+      if (action) params.set('action', action);
+      if (resource) params.set('resource', resource);
+      if (user) params.set('user', user);
+      params.set('page', '1');
+      params.set('limit', document.getElementById('pageSize').value);
+
+      window.location.href = `${basePath}/admin/audit-logs?${params.toString()}`;
+    }
+
+    function changePageSize() {
+      const limit = document.getElementById('pageSize').value;
+      const params = new URLSearchParams(window.location.search);
+      params.set('limit', limit);
+      params.set('page', '1');
+      window.location.href = `${basePath}/admin/audit-logs?${params.toString()}`;
+    }
+  </script>
+</body>
+</html>

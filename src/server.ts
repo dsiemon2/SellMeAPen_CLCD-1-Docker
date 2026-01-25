@@ -11,11 +11,16 @@ import healthRouter from './routes/health.js';
 import chatRouter from './routes/chat.js';
 import authRouter from './routes/auth.js';
 import dashboardRouter from './routes/dashboard.js';
+import gamificationRouter from './routes/gamification.js';
 import { handleChatConnection } from './realtime/chatHandler.js';
 import { loadUser } from './middleware/auth.js';
+import { csrfProtection } from './middleware/csrf.js';
 
 const app = express();
 const logger = pino();
+
+// Trust proxy for running behind nginx
+app.set('trust proxy', 1);
 
 app.use(cors());
 app.use(cookieParser());
@@ -29,6 +34,9 @@ app.set('view engine', 'ejs');
 // Load user for all requests
 app.use(loadUser);
 
+// CSRF protection for all routes (generates token, validates on POST/PUT/DELETE)
+app.use(csrfProtection);
+
 // Splash page (public)
 app.get('/', (req, res) => {
   res.render('public/home', {
@@ -41,6 +49,7 @@ app.use('/healthz', healthRouter);
 app.use('/auth', authRouter);
 app.use('/dashboard', dashboardRouter);
 app.use('/chat', chatRouter);
+app.use('/api/gamification', gamificationRouter);
 
 const port = process.env.PORT ? Number(process.env.PORT) : 8010;
 const server = http.createServer(app);

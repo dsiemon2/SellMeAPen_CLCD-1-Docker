@@ -116,6 +116,7 @@
       </div>
 
       <form method="POST" action="<%= typeof basePath !== 'undefined' ? basePath : '' %>/admin/login" id="loginForm">
+        <input type="hidden" name="_csrf" value="<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>">
         <input type="hidden" name="redirect" value="<%= typeof redirect !== 'undefined' ? redirect : ((typeof basePath !== 'undefined' ? basePath : '') + '/admin') %>">
 
         <div class="mb-3">

@@ -7,52 +7,201 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
   <style>
-    .sidebar { min-height: 100vh; background: #2c3e50; }
+    :root {
+      --sidebar-bg: <%= branding?.primaryColor || '#4f46e5' %>;
+    }
+    .sidebar { min-height: 100vh; background: var(--sidebar-bg); }
     .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1rem; }
     .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
     .sidebar .nav-link i { margin-right: 0.5rem; }
     .main-content { background: #f8f9fa; min-height: 100vh; }
     .nav-divider { border-top: 1px solid rgba(255,255,255,0.2); margin: 0.5rem 0; }
     .nav-section { color: rgba(255,255,255,0.5); font-size: 0.75rem; padding: 0.5rem 1rem; text-transform: uppercase; }
+    .bulk-actions { display: none; background: #e3f2fd; padding: 0.75rem 1rem; border-radius: 8px; }
+    .bulk-actions.show { display: flex; }
+    .row-checkbox { cursor: pointer; }
+    tr.selected { background-color: #e3f2fd !important; }
   </style>
 </head>
 <body>
   <div class="container-fluid">
     <div class="row">
-      <%- include('_sidebar', { active: 'objections' }) %>
+      <%- include('_sidebar', { active: 'objections', basePath, branding }) %>
 
       <main class="col-md-10 ms-sm-auto main-content p-4">
         <h2 class="mb-4"><i class="bi bi-shield-exclamation text-primary me-2"></i>Objection Handlers</h2>
 
         <p class="text-muted mb-4">When customers object, the AI uses these responses. Good objection handling turns "no" into "tell me more."</p>
 
-        <% const categories = ['price', 'need', 'timing', 'trust', 'competition']; %>
-        <% categories.forEach(category => { %>
-          <% const catHandlers = handlers.filter(h => h.category === category); %>
-          <% if (catHandlers.length > 0) { %>
-          <div class="card mb-4">
-            <div class="card-header bg-<%= category === 'price' ? 'danger' : category === 'need' ? 'warning' : category === 'timing' ? 'info' : 'secondary' %> text-<%= category === 'warning' ? 'dark' : 'white' %>">
-              <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i><%= category.charAt(0).toUpperCase() + category.slice(1) %> Objections</h5>
-            </div>
-            <div class="card-body">
-              <% catHandlers.forEach(handler => { %>
-              <div class="border-bottom pb-3 mb-3">
-                <div class="d-flex justify-content-between align-items-start">
-                  <div>
-                    <h6 class="text-danger">"<%= handler.objection %>"</h6>
-                    <p class="mb-2"><strong>Response:</strong></p>
-                    <p class="text-muted"><%= handler.response %></p>
-                    <span class="badge bg-secondary">Technique: <%= handler.technique %></span>
-                  </div>
+        <!-- Add New Handler Form -->
+        <div class="card mb-4">
+          <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Add New Objection Handler</h5>
+          </div>
+          <div class="card-body">
+            <form id="addHandlerForm">
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Objection</label>
+                  <input type="text" class="form-control" id="objection" placeholder="e.g., It's too expensive" required>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Category</label>
+                  <select class="form-select" id="category" required>
+                    <option value="price">Price</option>
+                    <option value="need">Need</option>
+                    <option value="timing">Timing</option>
+                    <option value="trust">Trust</option>
+                    <option value="competition">Competition</option>
+                  </select>
+                </div>
+                <div class="col-md-12 mb-3">
+                  <label class="form-label">Response</label>
+                  <textarea class="form-control" id="response" rows="2" placeholder="How the AI should respond to this objection" required></textarea>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Technique</label>
+                  <select class="form-select" id="technique">
+                    <option value="feel-felt-found">Feel-Felt-Found</option>
+                    <option value="reframe">Reframe</option>
+                    <option value="isolate">Isolate</option>
+                    <option value="acknowledge">Acknowledge & Pivot</option>
+                    <option value="question">Question Back</option>
+                  </select>
                 </div>
               </div>
-              <% }) %>
+              <button type="submit" class="btn btn-primary" data-bs-toggle="tooltip" title="Add this objection handler to the AI's repertoire">
+                <i class="bi bi-plus"></i> Add Handler
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Bulk Actions Toolbar -->
+        <div class="bulk-actions mb-3 align-items-center justify-content-between" id="bulkActions">
+          <div>
+            <span class="me-3"><strong id="selectedCount">0</strong> selected</span>
+            <button class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="Delete selected handlers" onclick="bulkDelete()">
+              <i class="bi bi-trash"></i> Delete Selected
+            </button>
+            <button class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="tooltip" title="Toggle enabled state for selected" onclick="bulkToggle()">
+              <i class="bi bi-toggle-on"></i> Toggle Selected
+            </button>
+          </div>
+          <button class="btn btn-sm btn-link" onclick="clearSelection()" data-bs-toggle="tooltip" title="Clear all selections">Clear Selection</button>
+        </div>
+
+        <!-- Handlers Table -->
+        <div class="card">
+          <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Current Objection Handlers</h5>
+            <div>
+              <select class="form-select form-select-sm d-inline-block" id="categoryFilter" style="width: auto;" data-bs-toggle="tooltip" title="Filter by category">
+                <option value="">All Categories</option>
+                <option value="price">Price</option>
+                <option value="need">Need</option>
+                <option value="timing">Timing</option>
+                <option value="trust">Trust</option>
+                <option value="competition">Competition</option>
+              </select>
             </div>
           </div>
-          <% } %>
-        <% }) %>
+          <div class="card-body p-0">
+            <table class="table table-hover mb-0" id="handlersTable">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 40px;">
+                    <input type="checkbox" class="form-check-input" id="selectAll" data-bs-toggle="tooltip" title="Select all rows">
+                  </th>
+                  <th>Objection</th>
+                  <th>Category</th>
+                  <th>Response</th>
+                  <th>Technique</th>
+                  <th>Enabled</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody">
+                <% handlers.forEach(handler => { %>
+                <tr data-id="<%= handler.id %>" data-category="<%= handler.category %>">
+                  <td>
+                    <input type="checkbox" class="form-check-input row-checkbox" value="<%= handler.id %>">
+                  </td>
+                  <td><strong>"<%= handler.objection %>"</strong></td>
+                  <td>
+                    <span class="badge bg-<%= handler.category === 'price' ? 'danger' : handler.category === 'need' ? 'warning text-dark' : handler.category === 'timing' ? 'info' : handler.category === 'trust' ? 'secondary' : 'primary' %>">
+                      <%= handler.category %>
+                    </span>
+                  </td>
+                  <td><small class="text-muted"><%= handler.response.substring(0, 80) %><%= handler.response.length > 80 ? '...' : '' %></small></td>
+                  <td><span class="badge bg-secondary"><%= handler.technique %></span></td>
+                  <td>
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" id="enabled-<%= handler.id %>"
+                             <%= handler.enabled ? 'checked' : '' %>
+                             onchange="toggleHandler('<%= handler.id %>')"
+                             data-bs-toggle="tooltip"
+                             title="<%= handler.enabled ? 'Disable' : 'Enable' %> this handler">
+                    </div>
+                  </td>
+                  <td>
+                    <button class="btn btn-sm btn-outline-primary"
+                            data-bs-toggle="tooltip"
+                            title="Edit this handler"
+                            onclick="editHandler('<%= handler.id %>')">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger ms-1"
+                            data-bs-toggle="tooltip"
+                            title="Delete this handler"
+                            onclick="deleteHandler('<%= handler.id %>')">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+                <% }) %>
+                <% if (handlers.length === 0) { %>
+                <tr id="emptyRow">
+                  <td colspan="7" class="text-center text-muted py-4">
+                    No objection handlers yet. Add some above.
+                  </td>
+                </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
 
-        <div class="card">
+          <!-- Pagination -->
+          <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <div class="text-muted small">
+              Showing <span id="showingStart">1</span>-<span id="showingEnd"><%= Math.min(10, handlers.length) %></span> of <span id="totalRows"><%= handlers.length %></span> handlers
+            </div>
+            <nav>
+              <ul class="pagination pagination-sm mb-0" id="pagination">
+                <li class="page-item disabled" id="prevPage">
+                  <a class="page-link" href="#" onclick="changePage(-1); return false;">
+                    <i class="bi bi-chevron-left"></i>
+                  </a>
+                </li>
+                <li class="page-item disabled" id="nextPage">
+                  <a class="page-link" href="#" onclick="changePage(1); return false;">
+                    <i class="bi bi-chevron-right"></i>
+                  </a>
+                </li>
+              </ul>
+            </nav>
+            <div>
+              <select class="form-select form-select-sm" id="pageSize" style="width: auto;" data-bs-toggle="tooltip" title="Rows per page">
+                <option value="10">10 / page</option>
+                <option value="25">25 / page</option>
+                <option value="50">50 / page</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Objection Handling Techniques Reference -->
+        <div class="card mt-4">
           <div class="card-header bg-light">
             <h5 class="mb-0"><i class="bi bi-book me-2"></i>Objection Handling Techniques</h5>
           </div>
@@ -76,13 +225,292 @@
       </main>
     </div>
   </div>
+
+  <!-- Edit Modal -->
+  <div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Objection Handler</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="editForm">
+            <input type="hidden" id="editId">
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Objection</label>
+                <input type="text" class="form-control" id="editObjection" required>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Category</label>
+                <select class="form-select" id="editCategory" required>
+                  <option value="price">Price</option>
+                  <option value="need">Need</option>
+                  <option value="timing">Timing</option>
+                  <option value="trust">Trust</option>
+                  <option value="competition">Competition</option>
+                </select>
+              </div>
+              <div class="col-md-12 mb-3">
+                <label class="form-label">Response</label>
+                <textarea class="form-control" id="editResponse" rows="3" required></textarea>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label">Technique</label>
+                <select class="form-select" id="editTechnique">
+                  <option value="feel-felt-found">Feel-Felt-Found</option>
+                  <option value="reframe">Reframe</option>
+                  <option value="isolate">Isolate</option>
+                  <option value="acknowledge">Acknowledge & Pivot</option>
+                  <option value="question">Question Back</option>
+                </select>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="saveEdit()" data-bs-toggle="tooltip" title="Save changes">
+            <i class="bi bi-check"></i> Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // Initialize tooltips
+    const basePath = '<%= typeof basePath !== "undefined" ? basePath : "" %>';
+    let currentPage = 1;
+    let pageSize = 10;
+    let allRows = [];
+    let filteredRows = [];
+    let selectedRows = new Set();
+    let editModal;
+
+    // Handler data for editing
+    const handlersData = <%- JSON.stringify(handlers) %>;
+
+    // Initialize tooltips and pagination
     document.addEventListener('DOMContentLoaded', () => {
       const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
       tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+
+      allRows = Array.from(document.querySelectorAll('#tableBody tr:not(#emptyRow)'));
+      filteredRows = [...allRows];
+      updatePagination();
+
+      editModal = new bootstrap.Modal(document.getElementById('editModal'));
     });
+
+    // Category filter
+    document.getElementById('categoryFilter').addEventListener('change', function() {
+      const category = this.value;
+      filteredRows = category
+        ? allRows.filter(row => row.dataset.category === category)
+        : [...allRows];
+      currentPage = 1;
+      updatePagination();
+    });
+
+    // Select all checkbox
+    document.getElementById('selectAll').addEventListener('change', function() {
+      const checkboxes = document.querySelectorAll('.row-checkbox');
+      checkboxes.forEach(cb => {
+        const row = cb.closest('tr');
+        if (row.style.display !== 'none') {
+          cb.checked = this.checked;
+          if (this.checked) {
+            selectedRows.add(cb.value);
+            row.classList.add('selected');
+          } else {
+            selectedRows.delete(cb.value);
+            row.classList.remove('selected');
+          }
+        }
+      });
+      updateBulkActions();
+    });
+
+    // Individual row checkboxes
+    document.querySelectorAll('.row-checkbox').forEach(cb => {
+      cb.addEventListener('change', function() {
+        const row = this.closest('tr');
+        if (this.checked) {
+          selectedRows.add(this.value);
+          row.classList.add('selected');
+        } else {
+          selectedRows.delete(this.value);
+          row.classList.remove('selected');
+        }
+        updateBulkActions();
+      });
+    });
+
+    function updateBulkActions() {
+      const bulkActions = document.getElementById('bulkActions');
+      const selectedCount = document.getElementById('selectedCount');
+      selectedCount.textContent = selectedRows.size;
+      bulkActions.classList.toggle('show', selectedRows.size > 0);
+    }
+
+    function clearSelection() {
+      selectedRows.clear();
+      document.querySelectorAll('.row-checkbox').forEach(cb => {
+        cb.checked = false;
+        cb.closest('tr').classList.remove('selected');
+      });
+      document.getElementById('selectAll').checked = false;
+      updateBulkActions();
+    }
+
+    function updatePagination() {
+      const totalPages = Math.ceil(filteredRows.length / pageSize);
+      const start = (currentPage - 1) * pageSize;
+      const end = Math.min(start + pageSize, filteredRows.length);
+
+      // Hide all rows first
+      allRows.forEach(row => row.style.display = 'none');
+
+      // Show filtered rows in current page
+      filteredRows.forEach((row, idx) => {
+        row.style.display = (idx >= start && idx < end) ? '' : 'none';
+      });
+
+      document.getElementById('showingStart').textContent = filteredRows.length > 0 ? start + 1 : 0;
+      document.getElementById('showingEnd').textContent = end;
+      document.getElementById('totalRows').textContent = filteredRows.length;
+
+      document.getElementById('prevPage').classList.toggle('disabled', currentPage === 1);
+      document.getElementById('nextPage').classList.toggle('disabled', currentPage >= totalPages);
+
+      const pagination = document.getElementById('pagination');
+      const pageItems = pagination.querySelectorAll('.page-number');
+      pageItems.forEach(item => item.remove());
+
+      const nextPageLi = document.getElementById('nextPage');
+      for (let i = 1; i <= totalPages; i++) {
+        const li = document.createElement('li');
+        li.className = `page-item page-number ${i === currentPage ? 'active' : ''}`;
+        li.innerHTML = `<a class="page-link" href="#" onclick="goToPage(${i}); return false;">${i}</a>`;
+        pagination.insertBefore(li, nextPageLi);
+      }
+    }
+
+    function changePage(delta) {
+      const totalPages = Math.ceil(filteredRows.length / pageSize);
+      const newPage = currentPage + delta;
+      if (newPage >= 1 && newPage <= totalPages) {
+        currentPage = newPage;
+        updatePagination();
+      }
+    }
+
+    function goToPage(page) {
+      currentPage = page;
+      updatePagination();
+    }
+
+    document.getElementById('pageSize').addEventListener('change', function() {
+      pageSize = parseInt(this.value);
+      currentPage = 1;
+      updatePagination();
+    });
+
+    // Add handler form
+    document.getElementById('addHandlerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const res = await fetch(`${basePath}/admin/objections`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            objection: document.getElementById('objection').value,
+            category: document.getElementById('category').value,
+            response: document.getElementById('response').value,
+            technique: document.getElementById('technique').value
+          })
+        });
+        if (res.ok) location.reload();
+        else alert('Failed to add handler');
+      } catch (err) {
+        alert('Error adding handler');
+      }
+    });
+
+    function editHandler(id) {
+      const handler = handlersData.find(h => h.id === id);
+      if (handler) {
+        document.getElementById('editId').value = handler.id;
+        document.getElementById('editObjection').value = handler.objection;
+        document.getElementById('editCategory').value = handler.category;
+        document.getElementById('editResponse').value = handler.response;
+        document.getElementById('editTechnique').value = handler.technique;
+        editModal.show();
+      }
+    }
+
+    async function saveEdit() {
+      const id = document.getElementById('editId').value;
+      try {
+        const res = await fetch(`${basePath}/admin/objections/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            objection: document.getElementById('editObjection').value,
+            category: document.getElementById('editCategory').value,
+            response: document.getElementById('editResponse').value,
+            technique: document.getElementById('editTechnique').value
+          })
+        });
+        if (res.ok) location.reload();
+        else alert('Failed to update handler');
+      } catch (err) {
+        alert('Error updating handler');
+      }
+    }
+
+    async function toggleHandler(id) {
+      try {
+        await fetch(`${basePath}/admin/objections/${id}/toggle`, { method: 'POST' });
+      } catch (err) {
+        console.error('Error toggling handler:', err);
+      }
+    }
+
+    async function deleteHandler(id) {
+      if (!confirm('Delete this objection handler?')) return;
+      try {
+        await fetch(`${basePath}/admin/objections/${id}`, { method: 'DELETE' });
+        location.reload();
+      } catch (err) {
+        alert('Error deleting handler');
+      }
+    }
+
+    async function bulkDelete() {
+      if (!confirm(`Delete ${selectedRows.size} selected handlers?`)) return;
+      try {
+        for (const id of selectedRows) {
+          await fetch(`${basePath}/admin/objections/${id}`, { method: 'DELETE' });
+        }
+        location.reload();
+      } catch (err) {
+        alert('Error deleting handlers');
+      }
+    }
+
+    async function bulkToggle() {
+      try {
+        for (const id of selectedRows) {
+          await fetch(`${basePath}/admin/objections/${id}/toggle`, { method: 'POST' });
+        }
+        location.reload();
+      } catch (err) {
+        alert('Error toggling handlers');
+      }
+    }
   </script>
 </body>
 </html>

@@ -1,0 +1,154 @@
+<%- include('../layouts/auth', {
+  title: 'Set Up Two-Factor Authentication',
+  subtitle: 'Add an extra layer of security',
+  body: `
+
+<div id="alertContainer">
+  ${typeof error !== 'undefined' && error ? '<div class="alert alert-danger d-flex align-items-center"><i class="bi bi-exclamation-circle me-2"></i>' + error + '</div>' : ''}
+  ${typeof success !== 'undefined' && success ? '<div class="alert alert-success d-flex align-items-center"><i class="bi bi-check-circle me-2"></i>' + success + '</div>' : ''}
+</div>
+
+${typeof mfaEnabled !== 'undefined' && mfaEnabled ? `
+<!-- MFA Already Enabled -->
+<div class="text-center mb-4">
+  <div class="rounded-circle bg-success bg-opacity-10 d-inline-flex align-items-center justify-content-center" style="width: 64px; height: 64px;">
+    <i class="bi bi-shield-check text-success" style="font-size: 1.5rem;"></i>
+  </div>
+  <h5 class="mt-3 mb-2">Two-Factor Authentication Enabled</h5>
+  <p class="text-muted mb-0">Your account is protected with 2FA.</p>
+</div>
+
+<form method="POST" action="/auth/mfa/disable" id="disableForm">
+  <input type="hidden" name="_csrf" value="${typeof csrfToken !== 'undefined' ? csrfToken : ''}">
+
+  <div class="alert alert-warning">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    Disabling 2FA will make your account less secure.
+  </div>
+
+  <div class="mb-3">
+    <label class="form-label fw-medium">Enter your password to disable</label>
+    <input type="password" class="form-control" name="password" required placeholder="Your password">
+  </div>
+
+  <button type="submit" class="btn btn-danger w-100">
+    <i class="bi bi-shield-x me-2"></i>Disable Two-Factor Authentication
+  </button>
+</form>
+` : `
+<!-- MFA Setup Flow -->
+<div class="text-center mb-4">
+  <div class="rounded-circle bg-primary bg-opacity-10 d-inline-flex align-items-center justify-content-center" style="width: 64px; height: 64px;">
+    <i class="bi bi-qr-code text-primary" style="font-size: 1.5rem;"></i>
+  </div>
+</div>
+
+<div class="mb-4">
+  <h6 class="fw-semibold mb-3">Step 1: Scan QR Code</h6>
+  <p class="text-muted small mb-3">Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)</p>
+
+  <div class="text-center bg-white p-3 rounded border mb-3">
+    <img id="qrCode" alt="QR Code" style="width: 180px; height: 180px;">
+  </div>
+
+  <details class="mb-3">
+    <summary class="text-muted small" style="cursor: pointer;">Can't scan? Enter code manually</summary>
+    <div class="mt-2 p-2 bg-light rounded">
+      <code id="secretDisplay" class="d-block text-center" style="font-size: 0.9rem; letter-spacing: 2px; word-break: break-all;"></code>
+    </div>
+  </details>
+</div>
+
+<div class="mb-4">
+  <h6 class="fw-semibold mb-3">Step 2: Save Recovery Codes</h6>
+  <p class="text-muted small mb-3">Store these codes safely. You can use them to access your account if you lose your phone.</p>
+
+  <div class="bg-light rounded p-3 mb-2" id="recoveryCodesContainer">
+    <div class="row g-2" id="recoveryCodesList"></div>
+  </div>
+
+  <button type="button" class="btn btn-sm btn-outline-secondary" onclick="copyRecoveryCodes()">
+    <i class="bi bi-clipboard me-1"></i>Copy Codes
+  </button>
+</div>
+
+<form method="POST" action="/auth/mfa/enable" id="enableForm">
+  <input type="hidden" name="_csrf" value="${typeof csrfToken !== 'undefined' ? csrfToken : ''}">
+  <input type="hidden" name="secret" id="secretInput">
+  <input type="hidden" name="recoveryCodes" id="recoveryCodesInput">
+
+  <div class="mb-4">
+    <h6 class="fw-semibold mb-3">Step 3: Verify Setup</h6>
+    <label class="form-label">Enter code from authenticator app</label>
+    <input type="text" class="form-control text-center"
+           name="code" id="verifyCode"
+           maxlength="6" pattern="[0-9]{6}"
+           placeholder="000000"
+           autocomplete="one-time-code"
+           inputmode="numeric"
+           required
+           style="letter-spacing: 0.5em; font-size: 1.25rem;">
+  </div>
+
+  <button type="submit" class="btn btn-primary w-100">
+    <i class="bi bi-shield-check me-2"></i>Enable Two-Factor Authentication
+  </button>
+</form>
+`}
+
+<p class="text-center mt-4 mb-0">
+  <a href="/auth/settings" class="text-muted text-decoration-none small">
+    <i class="bi bi-arrow-left me-1"></i>Back to Settings
+  </a>
+</p>
+
+`,
+  scripts: `
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script>
+  (function() {
+    var setupData = ${typeof setupData !== 'undefined' ? JSON.stringify(setupData) : 'null'};
+    var mfaEnabled = ${typeof mfaEnabled !== 'undefined' ? mfaEnabled : 'false'};
+
+    document.addEventListener('DOMContentLoaded', function() {
+      if (mfaEnabled || !setupData) return;
+
+      // Generate QR code
+      QRCode.toDataURL(setupData.qrCodeUri, { width: 180, margin: 1 }, function(err, url) {
+        if (!err) {
+          document.getElementById('qrCode').src = url;
+        }
+      });
+
+      // Display secret
+      document.getElementById('secretDisplay').textContent = setupData.secret;
+      document.getElementById('secretInput').value = setupData.secret;
+
+      // Display recovery codes
+      var codesList = document.getElementById('recoveryCodesList');
+      setupData.recoveryCodes.forEach(function(code) {
+        var col = document.createElement('div');
+        col.className = 'col-6';
+        col.innerHTML = '<code class="d-block text-center py-1 bg-white rounded">' + code + '</code>';
+        codesList.appendChild(col);
+      });
+      document.getElementById('recoveryCodesInput').value = JSON.stringify(setupData.recoveryCodes);
+
+      // Format code input
+      var codeInput = document.getElementById('verifyCode');
+      codeInput.addEventListener('input', function(e) {
+        this.value = this.value.replace(/[^0-9]/g, '');
+      });
+    });
+
+    window.copyRecoveryCodes = function() {
+      if (!setupData) return;
+      var text = setupData.recoveryCodes.join('\\n');
+      navigator.clipboard.writeText(text).then(function() {
+        alert('Recovery codes copied to clipboard!');
+      });
+    };
+  })();
+</script>
+`
+}) %>

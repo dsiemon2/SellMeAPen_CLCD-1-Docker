@@ -16,13 +16,22 @@ model User {
   email         String    @unique
   passwordHash  String
   name          String
-  role          String    @default("user") // user, admin
+  role          String    @default("user") // user, admin, content_manager, analyst
   isActive      Boolean   @default(true)
   lastLoginAt   DateTime?
+  // MFA fields
+  mfaEnabled    Boolean   @default(false)
+  mfaSecret     String?   // Encrypted TOTP secret
+  recoveryCodes String    @default("[]") // JSON array of hashed recovery codes
+  mfaVerifiedAt DateTime? // Last MFA verification timestamp
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   sessions      UserSession[]
   salesSessions SalesSession[]
+  // Gamification relations
+  points        UserPoints?
+  achievements  UserAchievement[]
+  pointsHistory PointsHistory[]
 }
 
 model UserSession {
@@ -56,6 +65,10 @@ model SalesSession {
   updatedAt       DateTime @updatedAt
   messages        Message[]
   analytics       SessionAnalytics?
+  // Scenario and Speech Analytics relations
+  scenarioId      String?
+  scenario        Scenario? @relation(fields: [scenarioId], references: [id])
+  speechAnalytics SpeechAnalytics?
 }
 
 model Message {
@@ -568,6 +581,53 @@ model StoreInfo {
 // FEATURES - App feature toggles
 // ============================================
 
+// ============================================
+// AUDIT LOG - Track admin actions
+// ============================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  userEmail   String?
+  action      String   // login, logout, create, update, delete, export
+  resource    String   // user, session, config, technique, etc.
+  resourceId  String?
+  details     String   @default("{}") // JSON with additional details
+  ipAddress   String?
+  userAgent   String?
+  success     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+}
+
+// ============================================
+// PERMISSIONS - Granular role-based access
+// ============================================
+
+model Permission {
+  id          String   @id @default(cuid())
+  code        String   @unique // e.g., "sessions:read", "users:write"
+  name        String   // Display name
+  description String?
+  category    String   // users, sessions, config, analytics
+  createdAt   DateTime @default(now())
+  rolePermissions RolePermission[]
+}
+
+model RolePermission {
+  id           String   @id @default(cuid())
+  role         String   // user, admin, content_manager, analyst
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@unique([role, permissionId])
+}
+
 model Features {
   id                    String   @id @default(cuid())
   faqEnabled            Boolean  @default(false)
@@ -599,4 +659,208 @@ model Features {
   socialTikTokEnabled   Boolean  @default(false)
   socialTikTok          String   @default("")
   updatedAt             DateTime @updatedAt
+}
+
+// ============================================
+// GAMIFICATION - Points, Achievements, Leaderboards
+// ============================================
+
+model UserPoints {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  totalPoints     Int       @default(0)
+  level           Int       @default(1)
+  dailyPoints     Int       @default(0)
+  weeklyPoints    Int       @default(0)
+  monthlyPoints   Int       @default(0)
+  currentStreak   Int       @default(0)
+  longestStreak   Int       @default(0)
+  lastActivityAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Achievement {
+  id               String            @id @default(cuid())
+  code             String            @unique
+  name             String
+  description      String
+  icon             String            @default("bi-trophy")
+  category         String            @default("general") // milestones, performance, streaks, social
+  tier             String            @default("bronze") // bronze, silver, gold, platinum
+  pointsReward     Int               @default(0)
+  requirement      String            @default("{}") // JSON: { type: "sessions", count: 10 }
+  isSecret         Boolean           @default(false)
+  isActive         Boolean           @default(true)
+  sortOrder        Int               @default(0)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  userAchievements UserAchievement[]
+}
+
+model UserAchievement {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  earnedAt      DateTime    @default(now())
+  notified      Boolean     @default(false)
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@index([achievementId])
+}
+
+model PointsHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  points    Int
+  reason    String // session_complete, achievement, bonus, streak
+  sessionId String?
+  metadata  String   @default("{}") // JSON with additional details
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model GamificationSettings {
+  id                  String   @id @default(cuid())
+  pointsPerGradeA     Int      @default(100)
+  pointsPerGradeB     Int      @default(75)
+  pointsPerGradeC     Int      @default(50)
+  pointsPerGradeD     Int      @default(25)
+  pointsPerGradeF     Int      @default(10)
+  bonusSaleMade       Int      @default(50)
+  bonusStreak3        Int      @default(25)
+  bonusStreak5        Int      @default(50)
+  bonusStreak7        Int      @default(75)
+  levelUpThreshold    Int      @default(500) // Points per level
+  leaderboardEnabled  Boolean  @default(true)
+  achievementsEnabled Boolean  @default(true)
+  notificationsEnabled Boolean @default(true)
+  updatedAt           DateTime @updatedAt
+}
+
+// ============================================
+// CRM INTEGRATIONS - Salesforce & HubSpot
+// ============================================
+
+model CrmIntegration {
+  id             String            @id @default(cuid())
+  provider       String            @unique // salesforce, hubspot
+  name           String
+  description    String?
+  isEnabled      Boolean           @default(false)
+  clientId       String?
+  clientSecret   String? // Encrypted
+  accessToken    String? // Encrypted
+  refreshToken   String? // Encrypted
+  tokenExpiresAt DateTime?
+  instanceUrl    String? // Salesforce instance URL
+  portalId       String? // HubSpot portal ID
+  isConnected    Boolean           @default(false)
+  lastSyncAt     DateTime?
+  lastError      String?
+  syncMode       String            @default("realtime") // realtime, batch, manual
+  batchInterval  Int               @default(60) // Minutes between batch syncs
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  fieldMappings  CrmFieldMapping[]
+  syncLogs       CrmSyncLog[]
+}
+
+model CrmFieldMapping {
+  id            String         @id @default(cuid())
+  integrationId String
+  integration   CrmIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  sourceEntity  String // session, analytics, user
+  sourceField   String // outcome, score, conversionRate
+  targetObject  String // Contact, Lead, Activity, Engagement
+  targetField   String // CustomField__c, engagement_type
+  transformType String         @default("direct") // direct, map, format
+  transformConfig String       @default("{}") // JSON for value mappings
+  isEnabled     Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([integrationId, sourceField, targetField])
+}
+
+model CrmSyncLog {
+  id            String         @id @default(cuid())
+  integrationId String
+  integration   CrmIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  sessionId     String?
+  syncType      String // create, update, link
+  objectType    String // Activity, Engagement, Contact
+  externalId    String?
+  status        String         @default("pending") // pending, success, failed, retrying
+  errorMessage  String?
+  retryCount    Int            @default(0)
+  requestPayload String?
+  responseData  String?
+  createdAt     DateTime       @default(now())
+
+  @@index([integrationId])
+  @@index([sessionId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ============================================
+// SCENARIOS - Pre-built Training Scenarios
+// ============================================
+
+model Scenario {
+  id                   String         @id @default(cuid())
+  name                 String         @unique
+  slug                 String         @unique
+  description          String
+  category             String // cold_call, discovery, demo, objection, closing
+  subcategory          String? // For industry-specific variants
+  difficulty           String         @default("medium") // easy, medium, hard, expert
+  buyerPersona         String // JSON: { name, role, industry, personality, objections }
+  systemPromptOverride String?
+  openingContext       String?
+  successCriteria      String // JSON array of success criteria
+  requiredTechniques   String         @default("[]") // JSON array of technique names
+  exampleTranscript    String?
+  coachingTips         String         @default("[]") // JSON array of tips
+  estimatedDuration    Int            @default(5) // Minutes
+  enabled              Boolean        @default(true)
+  usageCount           Int            @default(0)
+  avgScore             Float          @default(0)
+  sortOrder            Int            @default(0)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  sessions             SalesSession[]
+}
+
+// ============================================
+// SPEECH ANALYTICS - Detailed Speaking Metrics
+// ============================================
+
+model SpeechAnalytics {
+  id                     String       @id @default(cuid())
+  sessionId              String       @unique
+  session                SalesSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  totalWords             Int          @default(0)
+  totalSpeakingTimeMs    Int          @default(0)
+  wordsPerMinute         Float        @default(0)
+  avgWordsPerUtterance   Float        @default(0)
+  fillerWordCount        Int          @default(0)
+  fillerWords            String       @default("{}") // JSON: { "um": 5, "uh": 3 }
+  fillerWordPercentage   Float        @default(0)
+  pauseCount             Int          @default(0)
+  avgPauseDurationMs     Float        @default(0)
+  longestPauseDurationMs Int          @default(0)
+  clarityScore           Float        @default(0) // 0-100
+  confidenceScore        Float        @default(0) // 0-100
+  utteranceMetrics       String       @default("[]") // JSON array of per-utterance metrics
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
 }

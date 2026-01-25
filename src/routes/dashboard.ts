@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { prisma } from '../db/prisma.js';
 import { requireAuth } from '../middleware/auth.js';
+import { getUserProgress, getLeaderboard } from '../services/gamificationService.js';
 
 const router = Router();
 
@@ -62,6 +63,18 @@ router.get('/', async (req, res) => {
       }
     }
 
+    // Get gamification data (if user is logged in)
+    let gamification = null;
+    let leaderboard: Array<{ rank: number; userId: string; userName: string; points: number; level: number }> = [];
+    if (userId) {
+      try {
+        gamification = await getUserProgress(userId);
+        leaderboard = await getLeaderboard('weekly', 5);
+      } catch (err) {
+        console.error('Error fetching gamification data:', err);
+      }
+    }
+
     res.render('dashboard', {
       user: req.user,
       basePath,
@@ -75,7 +88,9 @@ router.get('/', async (req, res) => {
         bestStreak
       },
       recentSessions,
-      currentMode: config?.salesMode || 'ai_sells'
+      currentMode: config?.salesMode || 'ai_sells',
+      gamification,
+      leaderboard
     });
 
   } catch (err: any) {

@@ -3,13 +3,90 @@ import crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
+// Permission codes
+const PERMISSIONS = {
+  USERS_READ: 'users:read',
+  USERS_WRITE: 'users:write',
+  USERS_DELETE: 'users:delete',
+  SESSIONS_READ: 'sessions:read',
+  SESSIONS_WRITE: 'sessions:write',
+  SESSIONS_DELETE: 'sessions:delete',
+  CONFIG_READ: 'config:read',
+  CONFIG_WRITE: 'config:write',
+  CONTENT_READ: 'content:read',
+  CONTENT_WRITE: 'content:write',
+  ANALYTICS_READ: 'analytics:read',
+  ANALYTICS_EXPORT: 'analytics:export',
+  AI_READ: 'ai:read',
+  AI_WRITE: 'ai:write',
+  AUDIT_READ: 'audit:read',
+  INTEGRATIONS_READ: 'integrations:read',
+  INTEGRATIONS_WRITE: 'integrations:write',
+  PAYMENTS_READ: 'payments:read',
+  PAYMENTS_WRITE: 'payments:write',
+} as const;
+
 // Simple password hashing (matches auth middleware)
 function hashPassword(password: string): string {
   return crypto.createHash('sha256').update(password).digest('hex');
 }
 
+async function seedPermissions() {
+  console.log('Seeding permissions...');
+
+  const permissionDefs = [
+    { code: PERMISSIONS.USERS_READ, name: 'View Users', category: 'users', description: 'View user list and details' },
+    { code: PERMISSIONS.USERS_WRITE, name: 'Manage Users', category: 'users', description: 'Create and edit users' },
+    { code: PERMISSIONS.USERS_DELETE, name: 'Delete Users', category: 'users', description: 'Delete user accounts' },
+    { code: PERMISSIONS.SESSIONS_READ, name: 'View Sessions', category: 'sessions', description: 'View training sessions' },
+    { code: PERMISSIONS.SESSIONS_WRITE, name: 'Manage Sessions', category: 'sessions', description: 'Edit session data' },
+    { code: PERMISSIONS.SESSIONS_DELETE, name: 'Delete Sessions', category: 'sessions', description: 'Delete sessions' },
+    { code: PERMISSIONS.CONFIG_READ, name: 'View Config', category: 'config', description: 'View app configuration' },
+    { code: PERMISSIONS.CONFIG_WRITE, name: 'Edit Config', category: 'config', description: 'Modify app settings' },
+    { code: PERMISSIONS.CONTENT_READ, name: 'View Content', category: 'content', description: 'View sales content' },
+    { code: PERMISSIONS.CONTENT_WRITE, name: 'Edit Content', category: 'content', description: 'Manage sales content' },
+    { code: PERMISSIONS.ANALYTICS_READ, name: 'View Analytics', category: 'analytics', description: 'View reports and analytics' },
+    { code: PERMISSIONS.ANALYTICS_EXPORT, name: 'Export Analytics', category: 'analytics', description: 'Export analytics data' },
+    { code: PERMISSIONS.AI_READ, name: 'View AI Settings', category: 'ai', description: 'View AI configuration' },
+    { code: PERMISSIONS.AI_WRITE, name: 'Edit AI Settings', category: 'ai', description: 'Manage AI configuration' },
+    { code: PERMISSIONS.AUDIT_READ, name: 'View Audit Logs', category: 'audit', description: 'View audit trail' },
+    { code: PERMISSIONS.INTEGRATIONS_READ, name: 'View Integrations', category: 'integrations', description: 'View webhooks and integrations' },
+    { code: PERMISSIONS.INTEGRATIONS_WRITE, name: 'Manage Integrations', category: 'integrations', description: 'Configure integrations' },
+    { code: PERMISSIONS.PAYMENTS_READ, name: 'View Payments', category: 'payments', description: 'View payment settings' },
+    { code: PERMISSIONS.PAYMENTS_WRITE, name: 'Manage Payments', category: 'payments', description: 'Configure payment gateways' },
+  ];
+
+  // Upsert permissions
+  for (const perm of permissionDefs) {
+    await prisma.permission.upsert({
+      where: { code: perm.code },
+      update: { name: perm.name, category: perm.category, description: perm.description },
+      create: perm
+    });
+  }
+
+  // Seed default role permissions for admin (admin gets all permissions)
+  const allPermissions = await prisma.permission.findMany();
+  for (const perm of allPermissions) {
+    await prisma.rolePermission.upsert({
+      where: {
+        role_permissionId: { role: 'admin', permissionId: perm.id }
+      },
+      update: {},
+      create: { role: 'admin', permissionId: perm.id }
+    });
+  }
+
+  console.log('Permissions seeded successfully');
+}
+
 async function main() {
   console.log('Seeding database...');
+
+  // ========================================
+  // PERMISSIONS
+  // ========================================
+  await seedPermissions();
 
   // ========================================
   // DEMO USERS
@@ -940,6 +1017,1081 @@ COMPETITION:
         temperature: 0.7,
         maxTokens: 4096
       }
+    });
+  }
+
+  // ========================================
+  // GAMIFICATION SETTINGS
+  // ========================================
+  console.log('Seeding gamification settings...');
+
+  await prisma.gamificationSettings.upsert({
+    where: { id: 'default' },
+    update: {},
+    create: {
+      id: 'default',
+      pointsPerGradeA: 100,
+      pointsPerGradeB: 75,
+      pointsPerGradeC: 50,
+      pointsPerGradeD: 25,
+      pointsPerGradeF: 10,
+      bonusSaleMade: 50,
+      bonusStreak3: 25,
+      bonusStreak5: 50,
+      bonusStreak7: 100,
+      levelUpThreshold: 500,
+      leaderboardEnabled: true,
+      achievementsEnabled: true
+    }
+  });
+
+  // ========================================
+  // ACHIEVEMENTS (15 Initial Achievements)
+  // ========================================
+  console.log('Seeding achievements...');
+
+  const achievements = [
+    // Milestones
+    {
+      code: 'first_sale',
+      name: 'First Close',
+      description: 'Complete your first successful sale',
+      icon: 'bi-trophy',
+      category: 'milestones',
+      tier: 'bronze',
+      pointsReward: 50,
+      requirement: JSON.stringify({ type: 'sales', value: 1 }),
+      sortOrder: 1
+    },
+    {
+      code: 'sales_5',
+      name: 'Sales Rookie',
+      description: 'Complete 5 successful sales',
+      icon: 'bi-graph-up-arrow',
+      category: 'milestones',
+      tier: 'bronze',
+      pointsReward: 50,
+      requirement: JSON.stringify({ type: 'sales', value: 5 }),
+      sortOrder: 2
+    },
+    {
+      code: 'sales_25',
+      name: 'Sales Pro',
+      description: 'Complete 25 successful sales',
+      icon: 'bi-star-fill',
+      category: 'milestones',
+      tier: 'gold',
+      pointsReward: 100,
+      requirement: JSON.stringify({ type: 'sales', value: 25 }),
+      sortOrder: 3
+    },
+    {
+      code: 'sessions_10',
+      name: 'Getting Started',
+      description: 'Complete 10 training sessions',
+      icon: 'bi-play-circle',
+      category: 'milestones',
+      tier: 'bronze',
+      pointsReward: 25,
+      requirement: JSON.stringify({ type: 'sessions', value: 10 }),
+      sortOrder: 4
+    },
+    {
+      code: 'sessions_25',
+      name: 'Regular Practice',
+      description: 'Complete 25 training sessions',
+      icon: 'bi-calendar-check',
+      category: 'milestones',
+      tier: 'silver',
+      pointsReward: 50,
+      requirement: JSON.stringify({ type: 'sessions', value: 25 }),
+      sortOrder: 5
+    },
+    {
+      code: 'sessions_50',
+      name: 'Half Century',
+      description: 'Complete 50 training sessions',
+      icon: 'bi-award',
+      category: 'milestones',
+      tier: 'silver',
+      pointsReward: 75,
+      requirement: JSON.stringify({ type: 'sessions', value: 50 }),
+      sortOrder: 6
+    },
+    {
+      code: 'sessions_100',
+      name: 'Centurion',
+      description: 'Complete 100 training sessions',
+      icon: 'bi-gem',
+      category: 'milestones',
+      tier: 'platinum',
+      pointsReward: 100,
+      requirement: JSON.stringify({ type: 'sessions', value: 100 }),
+      sortOrder: 7
+    },
+
+    // Performance
+    {
+      code: 'perfect_score',
+      name: 'Perfect Pitch',
+      description: 'Achieve a perfect 100% score',
+      icon: 'bi-bullseye',
+      category: 'performance',
+      tier: 'gold',
+      pointsReward: 100,
+      requirement: JSON.stringify({ type: 'score', value: 100 }),
+      sortOrder: 8
+    },
+    {
+      code: 'avg_score_90',
+      name: 'Consistent Excellence',
+      description: 'Maintain 90%+ average score over 10 sessions',
+      icon: 'bi-lightning-charge',
+      category: 'performance',
+      tier: 'gold',
+      pointsReward: 100,
+      requirement: JSON.stringify({ type: 'avg_score', value: 90 }),
+      sortOrder: 9
+    },
+    {
+      code: 'conversion_50',
+      name: 'Closer',
+      description: 'Achieve 50% conversion rate over 10+ sessions',
+      icon: 'bi-percent',
+      category: 'performance',
+      tier: 'silver',
+      pointsReward: 75,
+      requirement: JSON.stringify({ type: 'conversion', value: 50 }),
+      sortOrder: 10
+    },
+    {
+      code: 'conversion_75',
+      name: 'Master Closer',
+      description: 'Achieve 75% conversion rate over 20+ sessions',
+      icon: 'bi-patch-check',
+      category: 'performance',
+      tier: 'platinum',
+      pointsReward: 100,
+      requirement: JSON.stringify({ type: 'conversion', value: 75 }),
+      sortOrder: 11
+    },
+    {
+      code: 'speed_demon',
+      name: 'Speed Demon',
+      description: 'Close a sale in under 2 minutes',
+      icon: 'bi-speedometer2',
+      category: 'performance',
+      tier: 'silver',
+      pointsReward: 50,
+      requirement: JSON.stringify({ type: 'speed', value: 120 }),
+      sortOrder: 12
+    },
+
+    // Streaks
+    {
+      code: 'streak_3',
+      name: 'On a Roll',
+      description: 'Practice 3 days in a row',
+      icon: 'bi-fire',
+      category: 'streaks',
+      tier: 'bronze',
+      pointsReward: 25,
+      requirement: JSON.stringify({ type: 'streak', value: 3 }),
+      sortOrder: 13
+    },
+    {
+      code: 'streak_5',
+      name: 'Dedicated Seller',
+      description: 'Practice 5 days in a row',
+      icon: 'bi-fire',
+      category: 'streaks',
+      tier: 'silver',
+      pointsReward: 50,
+      requirement: JSON.stringify({ type: 'streak', value: 5 }),
+      sortOrder: 14
+    },
+    {
+      code: 'streak_7',
+      name: 'Week Warrior',
+      description: 'Practice 7 days in a row',
+      icon: 'bi-fire',
+      category: 'streaks',
+      tier: 'gold',
+      pointsReward: 75,
+      requirement: JSON.stringify({ type: 'streak', value: 7 }),
+      sortOrder: 15
+    }
+  ];
+
+  for (const achievement of achievements) {
+    await prisma.achievement.upsert({
+      where: { code: achievement.code },
+      update: {
+        name: achievement.name,
+        description: achievement.description,
+        icon: achievement.icon,
+        category: achievement.category,
+        tier: achievement.tier,
+        pointsReward: achievement.pointsReward,
+        requirement: achievement.requirement,
+        sortOrder: achievement.sortOrder
+      },
+      create: achievement
+    });
+  }
+
+  // ========================================
+  // SCENARIOS (25 Pre-built Training Scenarios)
+  // ========================================
+  console.log('Seeding scenarios...');
+
+  const scenarios = [
+    // Cold Call (5)
+    {
+      name: 'Gatekeeper Navigation',
+      slug: 'gatekeeper-navigation',
+      description: 'Learn to effectively navigate past gatekeepers to reach decision makers',
+      category: 'cold_call',
+      difficulty: 'hard',
+      buyerPersona: 'You are a protective executive assistant named Sarah. Your boss is extremely busy and hates unsolicited sales calls. Be polite but firm in filtering calls. Only let through people who can clearly demonstrate relevance and urgency.',
+      successCriteria: JSON.stringify(['Build rapport with gatekeeper', 'Demonstrate clear value', 'Get connected to decision maker']),
+      coachingTips: JSON.stringify(['Use the gatekeeper\'s name', 'Be respectful of their role', 'Offer to schedule a specific time', 'Create urgency without being pushy']),
+      estimatedDuration: 5,
+      sortOrder: 1
+    },
+    {
+      name: 'Voicemail Follow-up',
+      slug: 'voicemail-followup',
+      description: 'Practice responding when a prospect calls back from your voicemail',
+      category: 'cold_call',
+      difficulty: 'medium',
+      buyerPersona: 'You are a busy VP returning a voicemail. You\'re curious but skeptical. You have 2 minutes before your next meeting. Be direct about time constraints.',
+      successCriteria: JSON.stringify(['Quickly establish context', 'Create interest in 30 seconds', 'Secure next steps']),
+      coachingTips: JSON.stringify(['Have your elevator pitch ready', 'Reference specific value', 'Respect their time', 'Ask for a scheduled follow-up']),
+      estimatedDuration: 3,
+      sortOrder: 2
+    },
+    {
+      name: 'Referral Introduction',
+      slug: 'referral-introduction',
+      description: 'Leverage a mutual connection to warm up a cold call',
+      category: 'cold_call',
+      difficulty: 'easy',
+      buyerPersona: 'You are open to the call because a trusted colleague referred this salesperson. However, you still need to be convinced of the value. Be friendly but still evaluate the opportunity critically.',
+      successCriteria: JSON.stringify(['Effectively use referral', 'Build on existing trust', 'Establish own credibility']),
+      coachingTips: JSON.stringify(['Lead with the referral name', 'Mention specific conversation with referrer', 'Transition smoothly to your value prop']),
+      estimatedDuration: 4,
+      sortOrder: 3
+    },
+    {
+      name: 'Event Follow-up',
+      slug: 'event-followup',
+      description: 'Follow up with someone you met at a conference or trade show',
+      category: 'cold_call',
+      difficulty: 'easy',
+      buyerPersona: 'You met briefly at a conference last week. You remember the interaction vaguely. You\'re interested if they can remind you of the conversation and demonstrate continued relevance.',
+      successCriteria: JSON.stringify(['Reference specific event details', 'Recall conversation points', 'Move relationship forward']),
+      coachingTips: JSON.stringify(['Mention specific details from your meeting', 'Reference something unique about the event', 'Connect conference discussion to current needs']),
+      estimatedDuration: 4,
+      sortOrder: 4
+    },
+    {
+      name: 'Cold Email Reply',
+      slug: 'cold-email-reply',
+      description: 'Handle an interested response to your cold email outreach',
+      category: 'cold_call',
+      difficulty: 'medium',
+      buyerPersona: 'You replied to a cold email with "Tell me more." You\'re mildly interested but easily distracted. Need to be engaged quickly with specific, relevant information.',
+      successCriteria: JSON.stringify(['Capitalize on initial interest', 'Provide relevant details', 'Schedule deeper conversation']),
+      coachingTips: JSON.stringify(['Thank them for responding', 'Be specific and concise', 'Ask one qualifying question', 'Propose clear next step']),
+      estimatedDuration: 3,
+      sortOrder: 5
+    },
+
+    // Discovery (5)
+    {
+      name: 'Budget Discovery',
+      slug: 'budget-discovery',
+      description: 'Learn to uncover budget constraints without being pushy',
+      category: 'discovery',
+      difficulty: 'hard',
+      buyerPersona: 'You have budget but are protective about sharing it. You\'ve been burned before by salespeople who quoted to your budget ceiling. Be evasive about specific numbers until trust is established.',
+      successCriteria: JSON.stringify(['Build trust before asking', 'Uncover budget range', 'Understand budget timeline']),
+      coachingTips: JSON.stringify(['Ask about previous investments first', 'Use ranges instead of specific amounts', 'Connect budget to value', 'Understand their buying process']),
+      estimatedDuration: 6,
+      sortOrder: 6
+    },
+    {
+      name: 'Pain Point Deep Dive',
+      slug: 'pain-point-deep-dive',
+      description: 'Master the art of uncovering and quantifying business pain',
+      category: 'discovery',
+      difficulty: 'medium',
+      buyerPersona: 'You have real problems but haven\'t fully articulated them. You know something isn\'t working but aren\'t sure of the root cause. Be helpful in exploring the issues when asked good questions.',
+      successCriteria: JSON.stringify(['Identify core problems', 'Quantify the impact', 'Connect pain to solutions']),
+      coachingTips: JSON.stringify(['Ask "what happens when..." questions', 'Quantify pain in dollars or time', 'Explore downstream effects', 'Get emotional commitment']),
+      estimatedDuration: 7,
+      sortOrder: 7
+    },
+    {
+      name: 'Decision Process Mapping',
+      slug: 'decision-process-mapping',
+      description: 'Understand the complete buying process and all stakeholders',
+      category: 'discovery',
+      difficulty: 'hard',
+      buyerPersona: 'You\'re one of several decision makers. The process is complex with multiple approvals needed. Be helpful but don\'t volunteer everything - the salesperson needs to ask the right questions.',
+      successCriteria: JSON.stringify(['Identify all decision makers', 'Understand approval process', 'Map the timeline']),
+      coachingTips: JSON.stringify(['Ask who else needs to be involved', 'Understand each person\'s criteria', 'Learn about previous purchases', 'Identify potential blockers']),
+      estimatedDuration: 6,
+      sortOrder: 8
+    },
+    {
+      name: 'Timeline Discovery',
+      slug: 'timeline-discovery',
+      description: 'Uncover the true timeline and create appropriate urgency',
+      category: 'discovery',
+      difficulty: 'medium',
+      buyerPersona: 'You need a solution but aren\'t in a rush - or so you think. When good questions are asked, you realize the problem is more urgent than initially considered.',
+      successCriteria: JSON.stringify(['Understand current state', 'Identify trigger events', 'Establish realistic timeline']),
+      coachingTips: JSON.stringify(['Ask about consequences of delay', 'Identify compelling events', 'Connect timeline to their goals', 'Work backwards from deadlines']),
+      estimatedDuration: 5,
+      sortOrder: 9
+    },
+    {
+      name: 'Competitor Evaluation',
+      slug: 'competitor-evaluation',
+      description: 'Navigate a conversation where the prospect is evaluating competitors',
+      category: 'discovery',
+      difficulty: 'hard',
+      buyerPersona: 'You\'re actively evaluating 3 solutions including this one. You\'ve already had demos with competitors. Be open about the evaluation but don\'t reveal all your criteria upfront.',
+      successCriteria: JSON.stringify(['Understand evaluation criteria', 'Learn about competitor strengths', 'Differentiate your solution']),
+      coachingTips: JSON.stringify(['Ask what they liked about competitors', 'Understand their evaluation criteria', 'Focus on unique differentiation', 'Never badmouth competitors']),
+      estimatedDuration: 7,
+      sortOrder: 10
+    },
+
+    // Demo (5)
+    {
+      name: 'Executive Demo',
+      slug: 'executive-demo',
+      description: 'Deliver a compelling demo to a time-constrained executive',
+      category: 'demo',
+      difficulty: 'hard',
+      buyerPersona: 'You are a C-level executive with 15 minutes. You care about business outcomes, not features. Interrupt if the demo gets too technical or doesn\'t address your priorities.',
+      successCriteria: JSON.stringify(['Focus on business value', 'Stay high-level', 'Address executive priorities']),
+      coachingTips: JSON.stringify(['Start with business outcomes', 'Use their language and metrics', 'Have a 5-minute version ready', 'Let them drive the agenda']),
+      estimatedDuration: 8,
+      sortOrder: 11
+    },
+    {
+      name: 'Technical Demo',
+      slug: 'technical-demo',
+      description: 'Satisfy a technical evaluator with deep product knowledge',
+      category: 'demo',
+      difficulty: 'hard',
+      buyerPersona: 'You are a technical lead evaluating the solution. You want to see how it actually works, integrations, security, and edge cases. Ask challenging technical questions.',
+      successCriteria: JSON.stringify(['Demonstrate technical depth', 'Address integration concerns', 'Handle technical objections']),
+      coachingTips: JSON.stringify(['Know your technical specs', 'Show actual functionality', 'Be honest about limitations', 'Offer to involve your technical team']),
+      estimatedDuration: 10,
+      sortOrder: 12
+    },
+    {
+      name: 'ROI-Focused Demo',
+      slug: 'roi-focused-demo',
+      description: 'Demonstrate clear return on investment to a finance stakeholder',
+      category: 'demo',
+      difficulty: 'medium',
+      buyerPersona: 'You are the CFO/Finance lead. You need to see clear numbers and ROI projections. Features are interesting but you need to justify this expenditure to the board.',
+      successCriteria: JSON.stringify(['Present clear ROI', 'Use relevant metrics', 'Address cost concerns']),
+      coachingTips: JSON.stringify(['Lead with ROI data', 'Use customer case studies', 'Show TCO not just price', 'Connect to their specific metrics']),
+      estimatedDuration: 7,
+      sortOrder: 13
+    },
+    {
+      name: 'Competitive Comparison',
+      slug: 'competitive-comparison',
+      description: 'Demo your solution against a specific competitor the prospect is considering',
+      category: 'demo',
+      difficulty: 'hard',
+      buyerPersona: 'You\'re seriously considering a competitor. You want to see a direct comparison on the features that matter most to you. Be fair but challenge claims.',
+      successCriteria: JSON.stringify(['Acknowledge competitor strengths', 'Highlight key differentiators', 'Focus on customer priorities']),
+      coachingTips: JSON.stringify(['Know your competitor well', 'Focus on your unique value', 'Use customer stories for proof', 'Never disparage competitors']),
+      estimatedDuration: 8,
+      sortOrder: 14
+    },
+    {
+      name: 'Use Case Walkthrough',
+      slug: 'use-case-walkthrough',
+      description: 'Walk through a specific use case relevant to the prospect',
+      category: 'demo',
+      difficulty: 'medium',
+      buyerPersona: 'You have a very specific use case in mind. You want to see exactly how the product handles your workflow, not generic features. Get specific about your requirements.',
+      successCriteria: JSON.stringify(['Address specific use case', 'Show relevant workflow', 'Handle edge cases']),
+      coachingTips: JSON.stringify(['Start by confirming the use case', 'Walk through step by step', 'Involve them in the demo', 'Address gaps honestly']),
+      estimatedDuration: 8,
+      sortOrder: 15
+    },
+
+    // Objection Handling (5)
+    {
+      name: 'Price Objection',
+      slug: 'price-objection',
+      description: 'Handle the classic "it\'s too expensive" objection',
+      category: 'objection',
+      difficulty: 'medium',
+      buyerPersona: 'You like the product but feel it\'s overpriced. You\'ve seen cheaper alternatives. Push back on price but be open to value arguments that make sense.',
+      successCriteria: JSON.stringify(['Understand price concern', 'Reframe to value', 'Handle comparison to cheaper options']),
+      coachingTips: JSON.stringify(['Don\'t immediately discount', 'Understand their benchmark', 'Focus on value and ROI', 'Explore total cost of ownership']),
+      estimatedDuration: 5,
+      sortOrder: 16
+    },
+    {
+      name: 'Timing Objection',
+      slug: 'timing-objection',
+      description: 'Overcome "not the right time" or "let me think about it"',
+      category: 'objection',
+      difficulty: 'medium',
+      buyerPersona: 'You\'re genuinely busy and this isn\'t your top priority. However, with the right approach, you could be convinced to act sooner. Be honest about your constraints.',
+      successCriteria: JSON.stringify(['Understand real timing concerns', 'Create appropriate urgency', 'Establish concrete next steps']),
+      coachingTips: JSON.stringify(['Ask what they\'re thinking about', 'Understand consequences of delay', 'Offer to help prioritize', 'Set specific follow-up date']),
+      estimatedDuration: 5,
+      sortOrder: 17
+    },
+    {
+      name: 'Authority Objection',
+      slug: 'authority-objection',
+      description: 'Navigate "I need to check with my boss/team"',
+      category: 'objection',
+      difficulty: 'hard',
+      buyerPersona: 'You genuinely need approval from others. You can\'t make this decision alone. Be helpful in explaining the process but don\'t make promises you can\'t keep.',
+      successCriteria: JSON.stringify(['Understand decision process', 'Offer to help internally', 'Maintain momentum']),
+      coachingTips: JSON.stringify(['Ask about their recommendation', 'Offer to present to others', 'Provide materials they can share', 'Stay engaged in the process']),
+      estimatedDuration: 6,
+      sortOrder: 18
+    },
+    {
+      name: 'Need Objection',
+      slug: 'need-objection',
+      description: 'Address "We don\'t really need this right now"',
+      category: 'objection',
+      difficulty: 'hard',
+      buyerPersona: 'You don\'t see this as a priority. Current solutions are "good enough." You need to be shown pain you haven\'t fully recognized or quantified.',
+      successCriteria: JSON.stringify(['Uncover hidden pain', 'Quantify cost of status quo', 'Create vision of better future']),
+      coachingTips: JSON.stringify(['Explore current challenges', 'Quantify the cost of doing nothing', 'Paint picture of improvement', 'Use relevant case studies']),
+      estimatedDuration: 6,
+      sortOrder: 19
+    },
+    {
+      name: 'Trust Objection',
+      slug: 'trust-objection',
+      description: 'Build trust with a skeptical prospect',
+      category: 'objection',
+      difficulty: 'hard',
+      buyerPersona: 'You\'ve been burned by vendors before. You\'re naturally skeptical of sales claims. You need proof, references, and guarantees before you\'ll consider moving forward.',
+      successCriteria: JSON.stringify(['Acknowledge past experiences', 'Provide credible proof', 'Offer risk mitigation']),
+      coachingTips: JSON.stringify(['Validate their concerns', 'Offer references they can verify', 'Propose pilot or trial', 'Provide guarantees or SLAs']),
+      estimatedDuration: 6,
+      sortOrder: 20
+    },
+
+    // Closing (5)
+    {
+      name: 'Trial Close',
+      slug: 'trial-close',
+      description: 'Practice temperature-checking throughout the conversation',
+      category: 'closing',
+      difficulty: 'easy',
+      buyerPersona: 'You\'re interested but not yet committed. Respond honestly to trial closes - if something doesn\'t resonate, say so. Be warm but not a pushover.',
+      successCriteria: JSON.stringify(['Gauge interest naturally', 'Identify remaining concerns', 'Adjust approach based on feedback']),
+      coachingTips: JSON.stringify(['Use soft trial closes', 'Listen to the response carefully', 'Address concerns immediately', 'Build towards the final close']),
+      estimatedDuration: 5,
+      sortOrder: 21
+    },
+    {
+      name: 'Urgency Close',
+      slug: 'urgency-close',
+      description: 'Create and communicate genuine urgency without being pushy',
+      category: 'closing',
+      difficulty: 'medium',
+      buyerPersona: 'You\'re interested but feel no rush. You\'ll respond to genuine urgency but will push back on manufactured pressure tactics.',
+      successCriteria: JSON.stringify(['Create legitimate urgency', 'Connect urgency to their goals', 'Close without being pushy']),
+      coachingTips: JSON.stringify(['Use real deadlines or constraints', 'Connect to their timeline', 'Highlight cost of delay', 'Never use fake scarcity']),
+      estimatedDuration: 5,
+      sortOrder: 22
+    },
+    {
+      name: 'Summary Close',
+      slug: 'summary-close',
+      description: 'Summarize value and ask for the business',
+      category: 'closing',
+      difficulty: 'medium',
+      buyerPersona: 'You\'ve been through a good sales process. You need to hear a clear summary of why this makes sense before committing. React positively to accurate summaries.',
+      successCriteria: JSON.stringify(['Accurately summarize needs', 'Connect solution to needs', 'Ask clearly for the business']),
+      coachingTips: JSON.stringify(['Recap their stated needs', 'Show how you address each', 'Confirm understanding', 'Ask directly for the order']),
+      estimatedDuration: 5,
+      sortOrder: 23
+    },
+    {
+      name: 'Alternative Close',
+      slug: 'alternative-close',
+      description: 'Offer options that all lead to a positive outcome',
+      category: 'closing',
+      difficulty: 'easy',
+      buyerPersona: 'You\'re ready to buy but appreciate having options. You like feeling in control of the decision. Respond well to choices rather than single options.',
+      successCriteria: JSON.stringify(['Present valid alternatives', 'Guide without pushing', 'Close on their chosen option']),
+      coachingTips: JSON.stringify(['Offer 2-3 clear options', 'Explain benefits of each', 'Let them choose', 'Confirm and move forward']),
+      estimatedDuration: 4,
+      sortOrder: 24
+    },
+    {
+      name: 'Assumptive Close',
+      slug: 'assumptive-close',
+      description: 'Master the art of assuming the sale appropriately',
+      category: 'closing',
+      difficulty: 'medium',
+      buyerPersona: 'You\'ve shown clear buying signals and are essentially ready. Respond positively to confident assumptions but will correct if the salesperson gets ahead of themselves.',
+      successCriteria: JSON.stringify(['Read buying signals correctly', 'Assume confidently but appropriately', 'Handle any final concerns']),
+      coachingTips: JSON.stringify(['Watch for buying signals', 'Move to next steps naturally', 'Use "when" not "if"', 'Be ready to step back if needed']),
+      estimatedDuration: 5,
+      sortOrder: 25
+    }
+  ];
+
+  for (const scenario of scenarios) {
+    await prisma.scenario.upsert({
+      where: { slug: scenario.slug },
+      update: {
+        name: scenario.name,
+        description: scenario.description,
+        category: scenario.category,
+        difficulty: scenario.difficulty,
+        buyerPersona: scenario.buyerPersona,
+        successCriteria: scenario.successCriteria,
+        coachingTips: scenario.coachingTips,
+        estimatedDuration: scenario.estimatedDuration,
+        sortOrder: scenario.sortOrder
+      },
+      create: scenario
+    });
+  }
+
+  // ========================================
+  // CRM INTEGRATIONS (Defaults)
+  // ========================================
+  console.log('Seeding CRM integrations...');
+
+  const crmIntegrations = [
+    {
+      provider: 'salesforce',
+      name: 'Salesforce',
+      isEnabled: false,
+      syncMode: 'realtime'
+    },
+    {
+      provider: 'hubspot',
+      name: 'HubSpot',
+      isEnabled: false,
+      syncMode: 'realtime'
+    }
+  ];
+
+  for (const crm of crmIntegrations) {
+    await prisma.crmIntegration.upsert({
+      where: { provider: crm.provider },
+      update: {
+        name: crm.name
+      },
+      create: crm
+    });
+  }
+
+  // ========================================
+  // SAMPLE WEBHOOKS
+  // ========================================
+  console.log('Seeding sample webhooks...');
+
+  const webhooks = [
+    {
+      id: 'webhook-session-complete',
+      name: 'Session Complete Notification',
+      url: 'https://example.com/webhooks/session-complete',
+      events: 'session.completed,session.sale_made',
+      secret: 'whsec_demo_secret_key_123',
+      enabled: true
+    },
+    {
+      id: 'webhook-analytics',
+      name: 'Analytics Sync',
+      url: 'https://analytics.example.com/api/ingest',
+      events: 'session.completed,session.analytics',
+      secret: 'whsec_analytics_key_456',
+      enabled: true
+    },
+    {
+      id: 'webhook-slack',
+      name: 'Slack Notifications',
+      url: 'https://hooks.slack.com/services/T00000000/B00000000/XXXX',
+      events: 'session.sale_made',
+      secret: '',
+      enabled: false
+    }
+  ];
+
+  for (const webhook of webhooks) {
+    await prisma.webhook.upsert({
+      where: { id: webhook.id },
+      update: webhook,
+      create: webhook
+    });
+  }
+
+  // ========================================
+  // SMS SETTINGS
+  // ========================================
+  console.log('Seeding SMS settings...');
+
+  await prisma.smsSettings.upsert({
+    where: { id: 'default' },
+    update: {},
+    create: {
+      id: 'default',
+      provider: 'twilio',
+      fromNumber: '+15551234567',
+      welcomeTemplate: 'Welcome to Sell Me a Pen Training! Reply START to begin.',
+      completeTemplate: 'Great session! You scored {score}%. Reply AGAIN for more.',
+      followupTemplate: 'Ready for more practice? Reply START anytime.',
+      autoWelcome: true,
+      autoComplete: true,
+      autoFollowup: false
+    }
+  });
+
+  // ========================================
+  // CALL TRANSFER SETTINGS
+  // ========================================
+  console.log('Seeding call transfer settings...');
+
+  await prisma.callTransferSettings.upsert({
+    where: { id: 'default' },
+    update: {},
+    create: {
+      id: 'default',
+      mode: 'warm',
+      holdMusic: 'jazz',
+      timeout: 30,
+      fallbackAction: 'voicemail',
+      triggerSale: true,
+      triggerEscalate: true,
+      triggerComplex: false
+    }
+  });
+
+  // Transfer destinations
+  const transferDests = [
+    { id: 'dest-coach', name: 'Sales Coach', number: '+15559876543', priority: 1, enabled: true },
+    { id: 'dest-manager', name: 'Sales Manager', number: '+15559876544', priority: 2, enabled: true }
+  ];
+  for (const dest of transferDests) {
+    await prisma.transferDestination.upsert({
+      where: { id: dest.id },
+      update: dest,
+      create: dest
+    });
+  }
+
+  // ========================================
+  // DTMF SETTINGS
+  // ========================================
+  console.log('Seeding DTMF settings...');
+
+  await prisma.dtmfSettings.upsert({
+    where: { id: 'default' },
+    update: {},
+    create: {
+      id: 'default',
+      welcomeMessage: 'Press 1 to start training, 2 for scores, 3 for a coach.',
+      inputTimeout: 5,
+      invalidMessage: 'Invalid selection. Please try again.',
+      maxRetries: 3,
+      menuItems: JSON.stringify({
+        '1': { action: 'start_session', label: 'Start Training' },
+        '2': { action: 'view_scores', label: 'View Scores' },
+        '3': { action: 'transfer', label: 'Speak to Coach' },
+        '0': { action: 'main_menu', label: 'Main Menu' }
+      })
+    }
+  });
+
+  // ========================================
+  // AI AGENTS
+  // ========================================
+  console.log('Seeding AI agents...');
+
+  const aiAgents = [
+    {
+      id: 'agent-skeptical',
+      name: 'Skeptical Steve',
+      description: 'A tough, skeptical buyer who needs convincing',
+      persona: 'You are Steve, a skeptical buyer. Push back on claims and ask for proof.',
+      temperature: 0.8,
+      tools: JSON.stringify(['get_pen_info', 'get_pricing']),
+      enabled: true
+    },
+    {
+      id: 'agent-friendly',
+      name: 'Friendly Fran',
+      description: 'An approachable buyer who engages easily',
+      persona: 'You are Fran, friendly and curious. Engage warmly but need value shown.',
+      temperature: 0.7,
+      tools: JSON.stringify(['get_pen_info']),
+      enabled: true
+    },
+    {
+      id: 'agent-busy',
+      name: 'Busy Barbara',
+      description: 'A time-pressed executive',
+      persona: 'You are Barbara, a busy exec with 3 minutes. Get to the point.',
+      temperature: 0.6,
+      tools: JSON.stringify(['get_pricing']),
+      enabled: true
+    },
+    {
+      id: 'agent-budget',
+      name: 'Budget Bob',
+      description: 'A price-focused buyer',
+      persona: 'You are Bob, always looking for the best deal. Ask about discounts.',
+      temperature: 0.7,
+      tools: JSON.stringify(['get_pricing']),
+      enabled: true
+    },
+    {
+      id: 'agent-technical',
+      name: 'Technical Tom',
+      description: 'A detail-oriented evaluator',
+      persona: 'You are Tom, a technical evaluator. Ask about specs and details.',
+      temperature: 0.5,
+      tools: JSON.stringify(['get_pen_info']),
+      enabled: true
+    }
+  ];
+
+  for (const agent of aiAgents) {
+    await prisma.aiAgent.upsert({
+      where: { id: agent.id },
+      update: agent,
+      create: agent
+    });
+  }
+
+  // ========================================
+  // LOGIC RULES
+  // ========================================
+  console.log('Seeding logic rules...');
+
+  const logicRules = [
+    {
+      id: 'rule-price',
+      name: 'Price Objection Handler',
+      priority: 10,
+      trigger: 'message_received',
+      condition: 'message.includes("expensive") || message.includes("cost")',
+      action: 'inject_prompt',
+      params: JSON.stringify({ prompt: 'Use value reframing and ROI arguments.' }),
+      enabled: true
+    },
+    {
+      id: 'rule-competitor',
+      name: 'Competitor Mention',
+      priority: 8,
+      trigger: 'message_received',
+      condition: 'message.includes("competitor") || message.includes("alternative")',
+      action: 'inject_prompt',
+      params: JSON.stringify({ prompt: 'Focus on unique differentiators.' }),
+      enabled: true
+    },
+    {
+      id: 'rule-buying',
+      name: 'Buying Signal',
+      priority: 15,
+      trigger: 'message_received',
+      condition: 'message.includes("buy") || message.includes("order")',
+      action: 'inject_prompt',
+      params: JSON.stringify({ prompt: 'Move to close but ASK for the order.' }),
+      enabled: true
+    },
+    {
+      id: 'rule-silence',
+      name: 'Silence Handler',
+      priority: 5,
+      trigger: 'silence_detected',
+      condition: 'silenceDuration > 10',
+      action: 'inject_prompt',
+      params: JSON.stringify({ prompt: 'Re-engage with an open question.' }),
+      enabled: true
+    },
+    {
+      id: 'rule-objections',
+      name: 'Multiple Objections',
+      priority: 7,
+      trigger: 'objection_count',
+      condition: 'objectionCount >= 3',
+      action: 'inject_prompt',
+      params: JSON.stringify({ prompt: 'Consider if this is the right fit.' }),
+      enabled: true
+    }
+  ];
+
+  for (const rule of logicRules) {
+    await prisma.logicRule.upsert({
+      where: { id: rule.id },
+      update: rule,
+      create: rule
+    });
+  }
+
+  // ========================================
+  // CUSTOM FUNCTIONS
+  // ========================================
+  console.log('Seeding custom functions...');
+
+  const customFunctions = [
+    {
+      id: 'func-discount',
+      name: 'Calculate Discount',
+      description: 'Calculates discount based on quantity',
+      params: JSON.stringify(['quantity', 'customerType']),
+      body: 'let d=0; if(quantity>=10)d=15; else if(quantity>=5)d=10; if(customerType==="enterprise")d+=10; return Math.min(d,25);',
+      enabled: true
+    },
+    {
+      id: 'func-inventory',
+      name: 'Check Inventory',
+      description: 'Checks pen inventory by finish',
+      params: JSON.stringify(['finish']),
+      body: 'const inv={matte_black:47,brushed_silver:23,rose_gold:12,carbon_fiber:5}; return {available:inv[finish]||0,lowStock:(inv[finish]||0)<15};',
+      enabled: true
+    },
+    {
+      id: 'func-price',
+      name: 'Format Price',
+      description: 'Formats price with currency',
+      params: JSON.stringify(['amount', 'currency']),
+      body: 'return new Intl.NumberFormat("en-US",{style:"currency",currency:currency||"USD"}).format(amount);',
+      enabled: true
+    }
+  ];
+
+  for (const func of customFunctions) {
+    await prisma.customFunction.upsert({
+      where: { id: func.id },
+      update: func,
+      create: func
+    });
+  }
+
+  // ========================================
+  // SAMPLE SESSIONS WITH ANALYTICS
+  // ========================================
+  console.log('Seeding sample sessions...');
+
+  // Get demo user
+  const demoUser = await prisma.user.findUnique({ where: { email: 'user@demo.com' } });
+
+  if (demoUser) {
+    const sessionData = [
+      { outcome: 'sale_made', score: 92, messages: 14, daysAgo: 0 },
+      { outcome: 'sale_made', score: 87, messages: 18, daysAgo: 1 },
+      { outcome: 'no_sale', score: 65, messages: 22, daysAgo: 1 },
+      { outcome: 'sale_made', score: 95, messages: 12, daysAgo: 2 },
+      { outcome: 'no_sale', score: 58, messages: 25, daysAgo: 2 },
+      { outcome: 'sale_made', score: 78, messages: 16, daysAgo: 3 },
+      { outcome: 'no_sale', score: 72, messages: 20, daysAgo: 4 },
+      { outcome: 'sale_made', score: 88, messages: 15, daysAgo: 5 },
+      { outcome: 'sale_made', score: 91, messages: 13, daysAgo: 6 },
+      { outcome: 'no_sale', score: 45, messages: 28, daysAgo: 7 }
+    ];
+
+    for (let i = 0; i < sessionData.length; i++) {
+      const data = sessionData[i];
+      const startedAt = new Date();
+      startedAt.setDate(startedAt.getDate() - data.daysAgo);
+      startedAt.setHours(10 + i, 0, 0, 0);
+
+      const endedAt = new Date(startedAt);
+      endedAt.setMinutes(endedAt.getMinutes() + Math.floor(Math.random() * 10) + 3);
+
+      const session = await prisma.salesSession.upsert({
+        where: { id: `demo-session-${i}` },
+        update: {},
+        create: {
+          id: `demo-session-${i}`,
+          sessionId: `demo-ws-session-${i}`,
+          userId: demoUser.id,
+          outcome: data.outcome,
+          currentPhase: 'completed',
+          startedAt,
+          endedAt
+        }
+      });
+
+      // Create analytics for the session
+      await prisma.sessionAnalytics.upsert({
+        where: { sessionId: session.id },
+        update: {},
+        create: {
+          sessionId: session.id,
+          totalMessages: data.messages,
+          userMessageCount: Math.floor(data.messages / 2),
+          aiMessageCount: Math.ceil(data.messages / 2),
+          avgResponseLength: 45.5,
+          discoveryQuestionsAsked: Math.floor(Math.random() * 4) + 1,
+          objectionCount: Math.floor(Math.random() * 3),
+          positiveSignals: data.outcome === 'sale_made' ? Math.floor(Math.random() * 5) + 3 : Math.floor(Math.random() * 2),
+          negativeSignals: data.outcome === 'no_sale' ? Math.floor(Math.random() * 4) + 2 : Math.floor(Math.random() * 2),
+          successfulTechniques: JSON.stringify(['open_ended_questions', 'benefit_selling']),
+          failedTechniques: JSON.stringify([])
+        }
+      });
+
+      // Create some sample messages
+      const messages = [
+        { role: 'assistant', content: 'Hello! I see you\'re interested in pens. Before I tell you about ours, I\'m curious - when was the last time you had to sign something really important?' },
+        { role: 'user', content: 'Actually, I sign contracts almost every week for my business.' },
+        { role: 'assistant', content: 'Every week! That\'s a lot of important signatures. Tell me, what does your current pen say about you when you pull it out in those moments?' },
+        { role: 'user', content: 'Honestly, I just use whatever is lying around. I never really thought about it.' }
+      ];
+
+      for (let j = 0; j < Math.min(messages.length, data.messages); j++) {
+        await prisma.message.create({
+          data: {
+            sessionId: session.id,
+            role: messages[j % messages.length].role,
+            content: messages[j % messages.length].content
+          }
+        });
+      }
+    }
+
+    // ========================================
+    // USER GAMIFICATION DATA
+    // ========================================
+    console.log('Seeding user gamification data...');
+
+    // Create UserPoints for demo user
+    await prisma.userPoints.upsert({
+      where: { userId: demoUser.id },
+      update: {},
+      create: {
+        userId: demoUser.id,
+        totalPoints: 1250,
+        level: 3,
+        dailyPoints: 175,
+        weeklyPoints: 625,
+        monthlyPoints: 1250,
+        currentStreak: 4,
+        longestStreak: 7,
+        lastActivityAt: new Date()
+      }
+    });
+
+    // Award some achievements to demo user
+    const earnedAchievements = ['first_sale', 'sessions_10', 'streak_3', 'sales_5'];
+    for (const code of earnedAchievements) {
+      const achievement = await prisma.achievement.findUnique({ where: { code } });
+      if (achievement) {
+        await prisma.userAchievement.upsert({
+          where: {
+            userId_achievementId: { userId: demoUser.id, achievementId: achievement.id }
+          },
+          update: {},
+          create: {
+            userId: demoUser.id,
+            achievementId: achievement.id,
+            notified: true
+          }
+        });
+      }
+    }
+
+    // Create points history
+    const pointsHistory = [
+      { points: 100, reason: 'Session completed - Grade A', daysAgo: 0 },
+      { points: 50, reason: 'Sale made bonus', daysAgo: 0 },
+      { points: 75, reason: 'Session completed - Grade B', daysAgo: 1 },
+      { points: 50, reason: 'Sale made bonus', daysAgo: 1 },
+      { points: 50, reason: 'Session completed - Grade C', daysAgo: 2 },
+      { points: 25, reason: 'Streak bonus (3 days)', daysAgo: 2 }
+    ];
+
+    for (const ph of pointsHistory) {
+      const createdAt = new Date();
+      createdAt.setDate(createdAt.getDate() - ph.daysAgo);
+      await prisma.pointsHistory.create({
+        data: {
+          userId: demoUser.id,
+          points: ph.points,
+          reason: ph.reason,
+          createdAt
+        }
+      });
+    }
+  }
+
+  // ========================================
+  // SAMPLE AUDIT LOGS
+  // ========================================
+  console.log('Seeding sample audit logs...');
+
+  const adminUser = await prisma.user.findUnique({ where: { email: 'admin@demo.com' } });
+
+  if (adminUser) {
+    const auditLogs = [
+      { action: 'login', resource: 'auth', details: 'Admin login successful', daysAgo: 0 },
+      { action: 'update', resource: 'config', details: 'Updated AI voice settings', daysAgo: 0 },
+      { action: 'create', resource: 'webhook', details: 'Created webhook: Session Complete Notification', daysAgo: 1 },
+      { action: 'update', resource: 'technique', details: 'Modified closing technique: assumptive_close', daysAgo: 1 },
+      { action: 'delete', resource: 'session', details: 'Deleted test session', daysAgo: 2 },
+      { action: 'update', resource: 'product', details: 'Updated pen pricing', daysAgo: 3 },
+      { action: 'create', resource: 'user', details: 'Created user: user@demo.com', daysAgo: 5 },
+      { action: 'update', resource: 'branding', details: 'Updated primary color', daysAgo: 6 }
+    ];
+
+    for (const log of auditLogs) {
+      const createdAt = new Date();
+      createdAt.setDate(createdAt.getDate() - log.daysAgo);
+      createdAt.setHours(9 + Math.floor(Math.random() * 8), Math.floor(Math.random() * 60), 0, 0);
+
+      await prisma.auditLog.create({
+        data: {
+          userId: adminUser.id,
+          action: log.action,
+          resource: log.resource,
+          resourceId: 'sample',
+          details: log.details,
+          ipAddress: '192.168.1.' + Math.floor(Math.random() * 255),
+          userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0',
+          createdAt
+        }
+      });
+    }
+  }
+
+  // ========================================
+  // PAYMENT GATEWAY SETTINGS
+  // ========================================
+  console.log('Seeding payment gateway settings...');
+
+  const paymentGateways = [
+    { provider: 'stripe', name: 'Stripe', isEnabled: false, testMode: true },
+    { provider: 'paypal', name: 'PayPal', isEnabled: false, testMode: true },
+    { provider: 'square', name: 'Square', isEnabled: false, testMode: true }
+  ];
+
+  for (const gateway of paymentGateways) {
+    await prisma.paymentGateway.upsert({
+      where: { provider: gateway.provider },
+      update: {},
+      create: gateway
     });
   }
 

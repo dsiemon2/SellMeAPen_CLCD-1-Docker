@@ -1,0 +1,103 @@
+<%- include('../layouts/auth', {
+  title: 'Two-Factor Authentication',
+  subtitle: 'Enter your verification code',
+  body: `
+
+<div id="alertContainer">
+  ${typeof error !== 'undefined' && error ? '<div class="alert alert-danger d-flex align-items-center"><i class="bi bi-exclamation-circle me-2"></i>' + error + '</div>' : ''}
+</div>
+
+<div class="text-center mb-4">
+  <div class="rounded-circle bg-light d-inline-flex align-items-center justify-content-center" style="width: 64px; height: 64px;">
+    <i class="bi bi-shield-lock text-primary" style="font-size: 1.5rem;"></i>
+  </div>
+  <p class="text-muted mt-3 mb-0">Enter the 6-digit code from your authenticator app</p>
+</div>
+
+<form method="POST" action="/auth/mfa/verify" id="mfaForm">
+  <input type="hidden" name="_csrf" value="${typeof csrfToken !== 'undefined' ? csrfToken : ''}">
+  <input type="hidden" name="mfaToken" value="${typeof mfaToken !== 'undefined' ? mfaToken : ''}">
+  <input type="hidden" name="redirect" value="${typeof redirect !== 'undefined' ? redirect : '/chat'}">
+  <input type="hidden" name="remember" value="${typeof remember !== 'undefined' ? remember : ''}">
+
+  <div class="mb-4">
+    <label class="form-label fw-medium">Verification Code</label>
+    <input type="text" class="form-control form-control-lg text-center"
+           name="code" id="code"
+           maxlength="6" pattern="[0-9]{6}"
+           placeholder="000000"
+           autocomplete="one-time-code"
+           inputmode="numeric"
+           required autofocus
+           style="letter-spacing: 0.5em; font-size: 1.5rem;">
+  </div>
+
+  <button type="submit" class="btn btn-primary w-100 mb-3" id="submitBtn">
+    <span id="submitText"><i class="bi bi-shield-check me-2"></i>Verify</span>
+    <span id="submitSpinner" class="spinner-border spinner-border-sm d-none" role="status"></span>
+  </button>
+</form>
+
+<div class="divider"><span>or</span></div>
+
+<button type="button" class="btn btn-outline-secondary w-100" data-bs-toggle="collapse" data-bs-target="#recoverySection">
+  <i class="bi bi-key me-2"></i>Use Recovery Code
+</button>
+
+<div class="collapse mt-3" id="recoverySection">
+  <form method="POST" action="/auth/mfa/recovery" id="recoveryForm">
+    <input type="hidden" name="_csrf" value="${typeof csrfToken !== 'undefined' ? csrfToken : ''}">
+    <input type="hidden" name="mfaToken" value="${typeof mfaToken !== 'undefined' ? mfaToken : ''}">
+    <input type="hidden" name="redirect" value="${typeof redirect !== 'undefined' ? redirect : '/chat'}">
+    <input type="hidden" name="remember" value="${typeof remember !== 'undefined' ? remember : ''}">
+
+    <div class="mb-3">
+      <label class="form-label fw-medium">Recovery Code</label>
+      <input type="text" class="form-control text-center"
+             name="recoveryCode" id="recoveryCode"
+             placeholder="XXXX-XXXX"
+             style="text-transform: uppercase; letter-spacing: 0.1em;"
+             required>
+    </div>
+
+    <button type="submit" class="btn btn-outline-primary w-100">
+      <i class="bi bi-unlock me-2"></i>Verify Recovery Code
+    </button>
+  </form>
+</div>
+
+<p class="text-center mt-4 mb-0">
+  <a href="/auth/login" class="text-muted text-decoration-none small">
+    <i class="bi bi-arrow-left me-1"></i>Back to Login
+  </a>
+</p>
+
+`,
+  scripts: `
+<script>
+  (function() {
+    document.addEventListener('DOMContentLoaded', function() {
+      var codeInput = document.getElementById('code');
+
+      // Auto-submit when 6 digits entered
+      codeInput.addEventListener('input', function(e) {
+        this.value = this.value.replace(/[^0-9]/g, '');
+        if (this.value.length === 6) {
+          document.getElementById('mfaForm').submit();
+        }
+      });
+
+      // Format recovery code
+      var recoveryInput = document.getElementById('recoveryCode');
+      recoveryInput.addEventListener('input', function(e) {
+        var val = this.value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+        if (val.length > 4) {
+          val = val.slice(0, 4) + '-' + val.slice(4, 8);
+        }
+        this.value = val;
+      });
+    });
+  })();
+</script>
+`
+}) %>

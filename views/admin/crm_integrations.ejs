@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CRM Integrations - Sell Me a Pen Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    .sidebar { min-height: 100vh; background: #2c3e50; }
+    .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1rem; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+    .sidebar .nav-link i { margin-right: 0.5rem; }
+    .main-content { background: #f8f9fa; min-height: 100vh; }
+    .nav-divider { border-top: 1px solid rgba(255,255,255,0.2); margin: 0.5rem 0; }
+    .nav-section { color: rgba(255,255,255,0.5); font-size: 0.75rem; padding: 0.5rem 1rem; text-transform: uppercase; }
+    .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
+    .integration-card { border: 2px solid #dee2e6; transition: all 0.2s; }
+    .integration-card.connected { border-color: #198754; }
+    .integration-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .integration-logo { width: 48px; height: 48px; object-fit: contain; }
+    .status-indicator { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+    .status-indicator.connected { background: #198754; }
+    .status-indicator.disconnected { background: #dc3545; }
+    .status-indicator.configured { background: #ffc107; }
+    .sync-log-row { font-size: 0.875rem; }
+    .sync-log-row.failed { background-color: #fff3f3; }
+    .field-mapping-row { background: #f8f9fa; border-radius: 8px; padding: 1rem; margin-bottom: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <%- include('_sidebar', { active: 'crm' }) %>
+
+      <main class="col-md-10 ms-sm-auto main-content p-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h2><i class="bi bi-diagram-3 text-primary me-2"></i>CRM Integrations</h2>
+          <button class="btn btn-outline-secondary" onclick="location.reload()" data-bs-toggle="tooltip" title="Refresh status">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+        </div>
+
+        <div class="toast-container"></div>
+
+        <!-- Integration Cards -->
+        <div class="row g-4 mb-4">
+          <% integrations.forEach(integration => { %>
+            <div class="col-md-6">
+              <div class="card integration-card <%= integration.isConnected ? 'connected' : '' %>">
+                <div class="card-body">
+                  <div class="d-flex align-items-start mb-3">
+                    <% if (integration.provider === 'salesforce') { %>
+                      <div class="integration-logo d-flex align-items-center justify-content-center bg-primary bg-opacity-10 rounded me-3" style="width: 56px; height: 56px;">
+                        <i class="bi bi-cloud text-primary" style="font-size: 1.75rem;"></i>
+                      </div>
+                    <% } else { %>
+                      <div class="integration-logo d-flex align-items-center justify-content-center bg-warning bg-opacity-10 rounded me-3" style="width: 56px; height: 56px;">
+                        <i class="bi bi-gear text-warning" style="font-size: 1.75rem;"></i>
+                      </div>
+                    <% } %>
+                    <div class="flex-grow-1">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-1"><%= integration.name %></h5>
+                        <div class="form-check form-switch">
+                          <input class="form-check-input" type="checkbox" id="enable-<%= integration.provider %>"
+                            <%= integration.isEnabled ? 'checked' : '' %>
+                            <%= !integration.isConnected ? 'disabled' : '' %>
+                            onchange="toggleEnabled('<%= integration.provider %>', this.checked)"
+                            data-bs-toggle="tooltip" title="<%= integration.isConnected ? 'Enable/disable sync' : 'Connect first to enable' %>">
+                        </div>
+                      </div>
+                      <p class="text-muted small mb-0"><%= integration.description || 'Sync training sessions to ' + integration.name %></p>
+                    </div>
+                  </div>
+
+                  <!-- Connection Status -->
+                  <div class="d-flex align-items-center mb-3">
+                    <span class="status-indicator <%= integration.isConnected ? 'connected' : (configured[integration.provider] ? 'configured' : 'disconnected') %> me-2"></span>
+                    <% if (integration.isConnected) { %>
+                      <span class="text-success small">Connected</span>
+                      <% if (integration.instanceUrl) { %>
+                        <span class="text-muted small ms-2">(<%= integration.instanceUrl.replace('https://', '').split('.')[0] %>)</span>
+                      <% } %>
+                      <% if (integration.portalId) { %>
+                        <span class="text-muted small ms-2">(Portal: <%= integration.portalId %>)</span>
+                      <% } %>
+                    <% } else if (configured[integration.provider]) { %>
+                      <span class="text-warning small">Configured - Ready to Connect</span>
+                    <% } else { %>
+                      <span class="text-danger small">Not Configured</span>
+                    <% } %>
+                  </div>
+
+                  <% if (integration.lastError) { %>
+                    <div class="alert alert-danger py-2 small mb-3">
+                      <i class="bi bi-exclamation-triangle me-1"></i>
+                      <%= integration.lastError %>
+                    </div>
+                  <% } %>
+
+                  <!-- Sync Stats -->
+                  <% if (integration.isConnected && stats[integration.provider]) { %>
+                    <div class="row g-2 mb-3">
+                      <div class="col-4 text-center">
+                        <div class="bg-light rounded p-2">
+                          <div class="text-success fw-bold"><%= stats[integration.provider].success %></div>
+                          <div class="text-muted small">Synced</div>
+                        </div>
+                      </div>
+                      <div class="col-4 text-center">
+                        <div class="bg-light rounded p-2">
+                          <div class="text-danger fw-bold"><%= stats[integration.provider].failed %></div>
+                          <div class="text-muted small">Failed</div>
+                        </div>
+                      </div>
+                      <div class="col-4 text-center">
+                        <div class="bg-light rounded p-2">
+                          <div class="text-warning fw-bold"><%= stats[integration.provider].pending %></div>
+                          <div class="text-muted small">Pending</div>
+                        </div>
+                      </div>
+                    </div>
+                    <% if (integration.lastSyncAt) { %>
+                      <div class="text-muted small mb-3">
+                        <i class="bi bi-clock me-1"></i>Last sync: <%= new Date(integration.lastSyncAt).toLocaleString() %>
+                      </div>
+                    <% } %>
+                  <% } %>
+
+                  <!-- Action Buttons -->
+                  <div class="d-flex gap-2 flex-wrap">
+                    <% if (integration.isConnected) { %>
+                      <button class="btn btn-sm btn-outline-success" onclick="testConnection('<%= integration.provider %>')" data-bs-toggle="tooltip" title="Test connection">
+                        <i class="bi bi-check-circle"></i> Test
+                      </button>
+                      <button class="btn btn-sm btn-outline-primary" onclick="showMappings('<%= integration.provider %>')" data-bs-toggle="tooltip" title="Configure field mappings">
+                        <i class="bi bi-list-ul"></i> Mappings
+                      </button>
+                      <button class="btn btn-sm btn-outline-info" onclick="showSyncLogs('<%= integration.provider %>')" data-bs-toggle="tooltip" title="View sync history">
+                        <i class="bi bi-journal-text"></i> Logs
+                      </button>
+                      <button class="btn btn-sm btn-outline-danger" onclick="disconnect('<%= integration.provider %>')" data-bs-toggle="tooltip" title="Disconnect integration">
+                        <i class="bi bi-x-lg"></i> Disconnect
+                      </button>
+                    <% } else if (configured[integration.provider]) { %>
+                      <a href="<%= basePath %>/admin/crm/<%= integration.provider %>/connect" class="btn btn-sm btn-primary">
+                        <i class="bi bi-plug"></i> Connect
+                      </a>
+                    <% } else { %>
+                      <button class="btn btn-sm btn-secondary" disabled data-bs-toggle="tooltip" title="Add credentials in .env file">
+                        <i class="bi bi-key"></i> Configure .env First
+                      </button>
+                    <% } %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+
+        <!-- Configuration Help -->
+        <div class="card mb-4">
+          <div class="card-header bg-white">
+            <h5 class="mb-0"><i class="bi bi-info-circle text-info me-2"></i>Setup Instructions</h5>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6">
+                <h6>Salesforce Setup</h6>
+                <ol class="small text-muted">
+                  <li>Create a Connected App in Salesforce Setup</li>
+                  <li>Enable OAuth settings with "api" and "refresh_token" scopes</li>
+                  <li>Set callback URL to: <code><%= process.env.BASE_URL || 'http://localhost:3001' %>/admin/crm/salesforce/callback</code></li>
+                  <li>Add credentials to .env:
+                    <pre class="bg-light p-2 rounded mt-1">SALESFORCE_CLIENT_ID=your_client_id
+SALESFORCE_CLIENT_SECRET=your_secret
+SALESFORCE_CALLBACK_URL=your_callback_url</pre>
+                  </li>
+                </ol>
+              </div>
+              <div class="col-md-6">
+                <h6>HubSpot Setup</h6>
+                <ol class="small text-muted">
+                  <li>Create a private app in HubSpot Developer Portal</li>
+                  <li>Add required scopes: crm.objects.contacts.read, crm.objects.contacts.write, etc.</li>
+                  <li>Set redirect URL to: <code><%= process.env.BASE_URL || 'http://localhost:3001' %>/admin/crm/hubspot/callback</code></li>
+                  <li>Add credentials to .env:
+                    <pre class="bg-light p-2 rounded mt-1">HUBSPOT_CLIENT_ID=your_client_id
+HUBSPOT_CLIENT_SECRET=your_secret
+HUBSPOT_CALLBACK_URL=your_callback_url</pre>
+                  </li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Sync Logs Modal -->
+  <div class="modal fade" id="syncLogsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-journal-text me-2"></i>Sync Logs - <span id="logsProvider"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-0">
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Time</th>
+                <th>Type</th>
+                <th>Object</th>
+                <th>Status</th>
+                <th>External ID</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="syncLogsTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Field Mappings Modal -->
+  <div class="modal fade" id="mappingsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-list-ul me-2"></i>Field Mappings - <span id="mappingsProvider"></span></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small">Map training session fields to your CRM fields. Default mappings sync automatically.</p>
+          <div id="mappingsList"></div>
+          <button class="btn btn-outline-primary btn-sm mt-3" onclick="addMapping()">
+            <i class="bi bi-plus-lg me-1"></i>Add Mapping
+          </button>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button class="btn btn-primary" onclick="saveMappings()">Save Mappings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const basePath = '<%= basePath %>';
+    let currentProvider = null;
+
+    // Initialize tooltips
+    document.addEventListener('DOMContentLoaded', () => {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+      tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+    });
+
+    function showToast(message, type = 'success') {
+      const container = document.querySelector('.toast-container');
+      const id = 'toast-' + Date.now();
+      const html = `
+        <div id="${id}" class="toast align-items-center text-white bg-${type} border-0" role="alert">
+          <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+          </div>
+        </div>`;
+      container.insertAdjacentHTML('beforeend', html);
+      const toast = new bootstrap.Toast(document.getElementById(id));
+      toast.show();
+    }
+
+    async function toggleEnabled(provider, enabled) {
+      try {
+        const response = await fetch(`${basePath}/admin/crm/${provider}/toggle`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled })
+        });
+        const data = await response.json();
+        if (data.success) {
+          showToast(`${provider} sync ${enabled ? 'enabled' : 'disabled'}`);
+        } else {
+          showToast(data.error || 'Failed to update', 'danger');
+        }
+      } catch (err) {
+        showToast('Error: ' + err.message, 'danger');
+      }
+    }
+
+    async function testConnection(provider) {
+      try {
+        const response = await fetch(`${basePath}/admin/crm/${provider}/test`, { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+          showToast(`${provider} connection successful!`);
+        } else {
+          showToast(data.error || 'Connection test failed', 'danger');
+        }
+      } catch (err) {
+        showToast('Error: ' + err.message, 'danger');
+      }
+    }
+
+    async function disconnect(provider) {
+      if (!confirm(`Disconnect ${provider}? You will need to reconnect and re-authorize.`)) return;
+      try {
+        const response = await fetch(`${basePath}/admin/crm/${provider}/disconnect`, { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+          showToast(`${provider} disconnected`);
+          location.reload();
+        } else {
+          showToast(data.error || 'Failed to disconnect', 'danger');
+        }
+      } catch (err) {
+        showToast('Error: ' + err.message, 'danger');
+      }
+    }
+
+    async function showSyncLogs(provider) {
+      currentProvider = provider;
+      document.getElementById('logsProvider').textContent = provider;
+      try {
+        const response = await fetch(`${basePath}/admin/crm/${provider}/logs`);
+        const data = await response.json();
+        const tbody = document.getElementById('syncLogsTable');
+        if (data.logs && data.logs.length > 0) {
+          tbody.innerHTML = data.logs.map(log => `
+            <tr class="sync-log-row ${log.status === 'failed' ? 'failed' : ''}">
+              <td>${new Date(log.createdAt).toLocaleString()}</td>
+              <td><span class="badge bg-secondary">${log.syncType}</span></td>
+              <td>${log.objectType}</td>
+              <td>
+                <span class="badge bg-${log.status === 'success' ? 'success' : (log.status === 'failed' ? 'danger' : 'warning')}">
+                  ${log.status}
+                </span>
+                ${log.retryCount > 0 ? `<small class="text-muted">(${log.retryCount} retries)</small>` : ''}
+              </td>
+              <td><code class="small">${log.externalId || '-'}</code></td>
+              <td>
+                ${log.status === 'failed' ? `
+                  <button class="btn btn-sm btn-outline-primary" onclick="retrySyncLog('${log.id}')" data-bs-toggle="tooltip" title="Retry sync">
+                    <i class="bi bi-arrow-repeat"></i>
+                  </button>
+                ` : ''}
+              </td>
+            </tr>
+          `).join('');
+        } else {
+          tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No sync logs yet</td></tr>';
+        }
+        new bootstrap.Modal(document.getElementById('syncLogsModal')).show();
+      } catch (err) {
+        showToast('Error loading logs: ' + err.message, 'danger');
+      }
+    }
+
+    async function retrySyncLog(logId) {
+      try {
+        const response = await fetch(`${basePath}/admin/crm/sync-logs/${logId}/retry`, { method: 'POST' });
+        const data = await response.json();
+        if (data.success) {
+          showToast('Sync retried successfully');
+          showSyncLogs(currentProvider);
+        } else {
+          showToast(data.error || 'Retry failed', 'danger');
+        }
+      } catch (err) {
+        showToast('Error: ' + err.message, 'danger');
+      }
+    }
+
+    async function showMappings(provider) {
+      currentProvider = provider;
+      document.getElementById('mappingsProvider').textContent = provider;
+      try {
+        const response = await fetch(`${basePath}/admin/crm/${provider}/mappings`);
+        const data = await response.json();
+        const container = document.getElementById('mappingsList');
+        if (data.mappings && data.mappings.length > 0) {
+          container.innerHTML = data.mappings.map((m, i) => `
+            <div class="field-mapping-row" data-id="${m.id}">
+              <div class="row g-2 align-items-center">
+                <div class="col-md-3">
+                  <label class="small text-muted">Source Field</label>
+                  <select class="form-select form-select-sm mapping-source">
+                    <option value="outcome" ${m.sourceField === 'outcome' ? 'selected' : ''}>Outcome</option>
+                    <option value="score" ${m.sourceField === 'score' ? 'selected' : ''}>Score</option>
+                    <option value="grade" ${m.sourceField === 'grade' ? 'selected' : ''}>Grade</option>
+                    <option value="salesMode" ${m.sourceField === 'salesMode' ? 'selected' : ''}>Sales Mode</option>
+                    <option value="duration" ${m.sourceField === 'duration' ? 'selected' : ''}>Duration</option>
+                    <option value="messageCount" ${m.sourceField === 'messageCount' ? 'selected' : ''}>Message Count</option>
+                  </select>
+                </div>
+                <div class="col-md-1 text-center">
+                  <i class="bi bi-arrow-right text-muted"></i>
+                </div>
+                <div class="col-md-3">
+                  <label class="small text-muted">Target Field</label>
+                  <input type="text" class="form-control form-control-sm mapping-target" value="${m.targetField}" placeholder="e.g., CustomField__c">
+                </div>
+                <div class="col-md-3">
+                  <label class="small text-muted">Target Object</label>
+                  <input type="text" class="form-control form-control-sm mapping-object" value="${m.targetObject}" placeholder="e.g., Task">
+                </div>
+                <div class="col-md-2 d-flex align-items-end gap-1">
+                  <div class="form-check">
+                    <input type="checkbox" class="form-check-input mapping-enabled" ${m.isEnabled ? 'checked' : ''}>
+                    <label class="form-check-label small">Active</label>
+                  </div>
+                  <button class="btn btn-sm btn-outline-danger" onclick="this.closest('.field-mapping-row').remove()">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          container.innerHTML = '<p class="text-muted small">No custom mappings configured. Default fields are synced automatically.</p>';
+        }
+        new bootstrap.Modal(document.getElementById('mappingsModal')).show();
+      } catch (err) {
+        showToast('Error loading mappings: ' + err.message, 'danger');
+      }
+    }
+
+    function addMapping() {
+      const container = document.getElementById('mappingsList');
+      const html = `
+        <div class="field-mapping-row" data-id="">
+          <div class="row g-2 align-items-center">
+            <div class="col-md-3">
+              <label class="small text-muted">Source Field</label>
+              <select class="form-select form-select-sm mapping-source">
+                <option value="outcome">Outcome</option>
+                <option value="score">Score</option>
+                <option value="grade">Grade</option>
+                <option value="salesMode">Sales Mode</option>
+                <option value="duration">Duration</option>
+                <option value="messageCount">Message Count</option>
+              </select>
+            </div>
+            <div class="col-md-1 text-center">
+              <i class="bi bi-arrow-right text-muted"></i>
+            </div>
+            <div class="col-md-3">
+              <label class="small text-muted">Target Field</label>
+              <input type="text" class="form-control form-control-sm mapping-target" placeholder="e.g., CustomField__c">
+            </div>
+            <div class="col-md-3">
+              <label class="small text-muted">Target Object</label>
+              <input type="text" class="form-control form-control-sm mapping-object" placeholder="e.g., Task">
+            </div>
+            <div class="col-md-2 d-flex align-items-end gap-1">
+              <div class="form-check">
+                <input type="checkbox" class="form-check-input mapping-enabled" checked>
+                <label class="form-check-label small">Active</label>
+              </div>
+              <button class="btn btn-sm btn-outline-danger" onclick="this.closest('.field-mapping-row').remove()">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </div>
+        </div>`;
+      container.insertAdjacentHTML('beforeend', html);
+    }
+
+    async function saveMappings() {
+      const rows = document.querySelectorAll('.field-mapping-row');
+      const mappings = Array.from(rows).map(row => ({
+        id: row.dataset.id || null,
+        sourceField: row.querySelector('.mapping-source').value,
+        targetField: row.querySelector('.mapping-target').value,
+        targetObject: row.querySelector('.mapping-object').value,
+        isEnabled: row.querySelector('.mapping-enabled').checked
+      })).filter(m => m.targetField);
+
+      try {
+        const response = await fetch(`${basePath}/admin/crm/${currentProvider}/mappings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mappings })
+        });
+        const data = await response.json();
+        if (data.success) {
+          showToast('Mappings saved');
+          bootstrap.Modal.getInstance(document.getElementById('mappingsModal')).hide();
+        } else {
+          showToast(data.error || 'Failed to save', 'danger');
+        }
+      } catch (err) {
+        showToast('Error: ' + err.message, 'danger');
+      }
+    }
+  </script>
+</body>
+</html>

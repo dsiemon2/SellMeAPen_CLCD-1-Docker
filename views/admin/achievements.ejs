@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Achievements - Sell Me a Pen Admin</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    :root {
+      --sidebar-bg: <%= branding?.primaryColor || '#4f46e5' %>;
+    }
+    .sidebar { min-height: 100vh; background: var(--sidebar-bg); }
+    .sidebar .nav-link { color: rgba(255,255,255,0.8); padding: 0.75rem 1rem; }
+    .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background: rgba(255,255,255,0.1); }
+    .sidebar .nav-link i { margin-right: 0.5rem; }
+    .main-content { background: #f8f9fa; min-height: 100vh; }
+    .nav-divider { border-top: 1px solid rgba(255,255,255,0.2); margin: 0.5rem 0; }
+    .nav-section { color: rgba(255,255,255,0.5); font-size: 0.75rem; padding: 0.5rem 1rem; text-transform: uppercase; }
+    .bulk-actions { display: none; background: #e3f2fd; padding: 0.75rem 1rem; border-radius: 8px; }
+    .bulk-actions.show { display: flex; }
+    .row-checkbox { cursor: pointer; }
+    tr.selected { background-color: #e3f2fd !important; }
+    .tier-bronze { color: #cd7f32; }
+    .tier-silver { color: #c0c0c0; }
+    .tier-gold { color: #ffd700; }
+    .tier-platinum { color: #e5e4e2; }
+    .achievement-icon { font-size: 1.5rem; }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <%- include('_sidebar', { active: 'achievements', basePath, branding }) %>
+
+      <main class="col-md-10 ms-sm-auto main-content p-4">
+        <h2 class="mb-4"><i class="bi bi-award text-primary me-2"></i>Achievements</h2>
+
+        <p class="text-muted mb-4">Configure achievements that users can earn through training sessions.</p>
+
+        <!-- Add New Achievement Form -->
+        <div class="card mb-4">
+          <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Add New Achievement</h5>
+          </div>
+          <div class="card-body">
+            <form id="addAchievementForm">
+              <div class="row">
+                <div class="col-md-4 mb-3">
+                  <label class="form-label">Code</label>
+                  <input type="text" class="form-control" id="code" placeholder="e.g., first_sale" required>
+                  <small class="text-muted">Unique identifier (lowercase, underscores)</small>
+                </div>
+                <div class="col-md-4 mb-3">
+                  <label class="form-label">Name</label>
+                  <input type="text" class="form-control" id="name" placeholder="e.g., First Close" required>
+                </div>
+                <div class="col-md-4 mb-3">
+                  <label class="form-label">Icon</label>
+                  <input type="text" class="form-control" id="icon" placeholder="e.g., bi-trophy" value="bi-trophy">
+                  <small class="text-muted">Bootstrap icon class</small>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label">Description</label>
+                  <input type="text" class="form-control" id="description" placeholder="Brief description of how to earn this" required>
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="form-label">Category</label>
+                  <select class="form-select" id="category" required>
+                    <option value="milestones">Milestones</option>
+                    <option value="performance">Performance</option>
+                    <option value="streaks">Streaks</option>
+                    <option value="special">Special</option>
+                  </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="form-label">Tier</label>
+                  <select class="form-select" id="tier" required>
+                    <option value="bronze">Bronze</option>
+                    <option value="silver">Silver</option>
+                    <option value="gold">Gold</option>
+                    <option value="platinum">Platinum</option>
+                  </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                  <label class="form-label">Points Reward</label>
+                  <input type="number" class="form-control" id="pointsReward" placeholder="50" value="50" min="0" required>
+                </div>
+                <div class="col-md-9 mb-3">
+                  <label class="form-label">Requirement (JSON)</label>
+                  <input type="text" class="form-control" id="requirement" placeholder='{"type": "sales", "value": 1}' value='{"type": "sales", "value": 1}'>
+                  <small class="text-muted">Types: sales, sessions, streak, score, conversion, speed</small>
+                </div>
+              </div>
+              <button type="submit" class="btn btn-warning" data-bs-toggle="tooltip" title="Add this achievement">
+                <i class="bi bi-plus"></i> Add Achievement
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Bulk Actions Toolbar -->
+        <div class="bulk-actions mb-3 align-items-center justify-content-between" id="bulkActions">
+          <div>
+            <span class="me-3"><strong id="selectedCount">0</strong> selected</span>
+            <button class="btn btn-sm btn-outline-success" data-bs-toggle="tooltip" title="Activate selected achievements" onclick="bulkActivate()">
+              <i class="bi bi-check-circle"></i> Activate Selected
+            </button>
+            <button class="btn btn-sm btn-outline-secondary ms-2" data-bs-toggle="tooltip" title="Deactivate selected achievements" onclick="bulkDeactivate()">
+              <i class="bi bi-x-circle"></i> Deactivate Selected
+            </button>
+            <button class="btn btn-sm btn-outline-danger ms-2" data-bs-toggle="tooltip" title="Delete selected achievements" onclick="bulkDelete()">
+              <i class="bi bi-trash"></i> Delete Selected
+            </button>
+          </div>
+          <button class="btn btn-sm btn-link" onclick="clearSelection()" data-bs-toggle="tooltip" title="Clear all selections">Clear Selection</button>
+        </div>
+
+        <!-- Achievements Table -->
+        <div class="card">
+          <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>All Achievements (<%= achievements.length %>)</h5>
+            <div>
+              <select class="form-select form-select-sm d-inline-block me-2" id="categoryFilter" style="width: auto;" data-bs-toggle="tooltip" title="Filter by category">
+                <option value="">All Categories</option>
+                <option value="milestones">Milestones</option>
+                <option value="performance">Performance</option>
+                <option value="streaks">Streaks</option>
+                <option value="special">Special</option>
+              </select>
+              <select class="form-select form-select-sm d-inline-block" id="tierFilter" style="width: auto;" data-bs-toggle="tooltip" title="Filter by tier">
+                <option value="">All Tiers</option>
+                <option value="bronze">Bronze</option>
+                <option value="silver">Silver</option>
+                <option value="gold">Gold</option>
+                <option value="platinum">Platinum</option>
+              </select>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <table class="table table-hover mb-0" id="achievementsTable">
+              <thead class="table-light">
+                <tr>
+                  <th style="width: 40px;">
+                    <input type="checkbox" class="form-check-input" id="selectAll" data-bs-toggle="tooltip" title="Select all rows">
+                  </th>
+                  <th>Achievement</th>
+                  <th>Category</th>
+                  <th>Tier</th>
+                  <th>Points</th>
+                  <th>Active</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody">
+                <% achievements.forEach(ach => { %>
+                <tr data-id="<%= ach.id %>" data-category="<%= ach.category %>" data-tier="<%= ach.tier %>">
+                  <td>
+                    <input type="checkbox" class="form-check-input row-checkbox" value="<%= ach.id %>">
+                  </td>
+                  <td>
+                    <div class="d-flex align-items-center">
+                      <i class="<%= ach.icon %> achievement-icon tier-<%= ach.tier %> me-2"></i>
+                      <div>
+                        <strong><%= ach.name %></strong>
+                        <div class="small text-muted"><%= ach.description %></div>
+                        <code class="small"><%= ach.code %></code>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="badge bg-<%= ach.category === 'milestones' ? 'primary' : ach.category === 'performance' ? 'success' : ach.category === 'streaks' ? 'warning text-dark' : 'info' %>">
+                      <%= ach.category %>
+                    </span>
+                  </td>
+                  <td>
+                    <span class="badge tier-<%= ach.tier %>" style="background: <%= ach.tier === 'bronze' ? '#cd7f32' : ach.tier === 'silver' ? '#c0c0c0' : ach.tier === 'gold' ? '#ffd700' : '#e5e4e2' %>; color: <%= ach.tier === 'gold' ? '#000' : '#fff' %>;">
+                      <%= ach.tier.charAt(0).toUpperCase() + ach.tier.slice(1) %>
+                    </span>
+                  </td>
+                  <td><span class="badge bg-dark"><%= ach.pointsReward %> pts</span></td>
+                  <td>
+                    <div class="form-check form-switch">
+                      <input class="form-check-input" type="checkbox" id="active-<%= ach.id %>"
+                             <%= ach.isActive ? 'checked' : '' %>
+                             onchange="toggleAchievement('<%= ach.id %>')"
+                             data-bs-toggle="tooltip"
+                             title="<%= ach.isActive ? 'Deactivate' : 'Activate' %> this achievement">
+                    </div>
+                  </td>
+                  <td>
+                    <button class="btn btn-sm btn-outline-primary"
+                            data-bs-toggle="tooltip"
+                            title="Edit this achievement"
+                            onclick="editAchievement('<%= ach.id %>')">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger ms-1"
+                            data-bs-toggle="tooltip"
+                            title="Delete this achievement"
+                            onclick="deleteAchievement('<%= ach.id %>')">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+                <% }) %>
+                <% if (achievements.length === 0) { %>
+                <tr id="emptyRow">
+                  <td colspan="7" class="text-center text-muted py-4">
+                    No achievements yet. Add some above.
+                  </td>
+                </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Pagination -->
+          <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+            <div class="text-muted small">
+              Showing <span id="showingStart">1</span>-<span id="showingEnd"><%= Math.min(10, achievements.length) %></span> of <span id="totalRows"><%= achievements.length %></span> achievements
+            </div>
+            <nav>
+              <ul class="pagination pagination-sm mb-0" id="pagination">
+                <li class="page-item disabled" id="prevPage">
+                  <a class="page-link" href="#" onclick="changePage(-1); return false;">
+                    <i class="bi bi-chevron-left"></i>
+                  </a>
+                </li>
+                <li class="page-item disabled" id="nextPage">
+                  <a class="page-link" href="#" onclick="changePage(1); return false;">
+                    <i class="bi bi-chevron-right"></i>
+                  </a>
+                </li>
+              </ul>
+            </nav>
+            <div>
+              <select class="form-select form-select-sm" id="pageSize" style="width: auto;" data-bs-toggle="tooltip" title="Rows per page">
+                <option value="10">10 / page</option>
+                <option value="25">25 / page</option>
+                <option value="50">50 / page</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Achievement</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="editForm">
+            <input type="hidden" id="editId">
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <label class="form-label">Code</label>
+                <input type="text" class="form-control" id="editCode" required>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label">Name</label>
+                <input type="text" class="form-control" id="editName" required>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label">Icon</label>
+                <input type="text" class="form-control" id="editIcon">
+              </div>
+              <div class="col-md-12 mb-3">
+                <label class="form-label">Description</label>
+                <input type="text" class="form-control" id="editDescription" required>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label">Category</label>
+                <select class="form-select" id="editCategory" required>
+                  <option value="milestones">Milestones</option>
+                  <option value="performance">Performance</option>
+                  <option value="streaks">Streaks</option>
+                  <option value="special">Special</option>
+                </select>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label">Tier</label>
+                <select class="form-select" id="editTier" required>
+                  <option value="bronze">Bronze</option>
+                  <option value="silver">Silver</option>
+                  <option value="gold">Gold</option>
+                  <option value="platinum">Platinum</option>
+                </select>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label">Points Reward</label>
+                <input type="number" class="form-control" id="editPointsReward" min="0" required>
+              </div>
+              <div class="col-md-12 mb-3">
+                <label class="form-label">Requirement (JSON)</label>
+                <input type="text" class="form-control" id="editRequirement">
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" onclick="saveEdit()" data-bs-toggle="tooltip" title="Save changes">
+            <i class="bi bi-check"></i> Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const basePath = '<%= typeof basePath !== "undefined" ? basePath : "" %>';
+    let currentPage = 1;
+    let pageSize = 10;
+    let allRows = [];
+    let filteredRows = [];
+    let selectedRows = new Set();
+    let editModal;
+
+    const achievementsData = <%- JSON.stringify(achievements) %>;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+      tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el));
+
+      allRows = Array.from(document.querySelectorAll('#tableBody tr:not(#emptyRow)'));
+      filteredRows = [...allRows];
+      updatePagination();
+
+      editModal = new bootstrap.Modal(document.getElementById('editModal'));
+    });
+
+    function applyFilters() {
+      const category = document.getElementById('categoryFilter').value;
+      const tier = document.getElementById('tierFilter').value;
+      filteredRows = allRows.filter(row => {
+        const matchCategory = !category || row.dataset.category === category;
+        const matchTier = !tier || row.dataset.tier === tier;
+        return matchCategory && matchTier;
+      });
+      currentPage = 1;
+      updatePagination();
+    }
+
+    document.getElementById('categoryFilter').addEventListener('change', applyFilters);
+    document.getElementById('tierFilter').addEventListener('change', applyFilters);
+
+    document.getElementById('selectAll').addEventListener('change', function() {
+      const checkboxes = document.querySelectorAll('.row-checkbox');
+      checkboxes.forEach(cb => {
+        const row = cb.closest('tr');
+        if (row.style.display !== 'none') {
+          cb.checked = this.checked;
+          if (this.checked) {
+            selectedRows.add(cb.value);
+            row.classList.add('selected');
+          } else {
+            selectedRows.delete(cb.value);
+            row.classList.remove('selected');
+          }
+        }
+      });
+      updateBulkActions();
+    });
+
+    document.querySelectorAll('.row-checkbox').forEach(cb => {
+      cb.addEventListener('change', function() {
+        const row = this.closest('tr');
+        if (this.checked) {
+          selectedRows.add(this.value);
+          row.classList.add('selected');
+        } else {
+          selectedRows.delete(this.value);
+          row.classList.remove('selected');
+        }
+        updateBulkActions();
+      });
+    });
+
+    function updateBulkActions() {
+      const bulkActions = document.getElementById('bulkActions');
+      const selectedCount = document.getElementById('selectedCount');
+      selectedCount.textContent = selectedRows.size;
+      bulkActions.classList.toggle('show', selectedRows.size > 0);
+    }
+
+    function clearSelection() {
+      selectedRows.clear();
+      document.querySelectorAll('.row-checkbox').forEach(cb => {
+        cb.checked = false;
+        cb.closest('tr').classList.remove('selected');
+      });
+      document.getElementById('selectAll').checked = false;
+      updateBulkActions();
+    }
+
+    function updatePagination() {
+      const totalPages = Math.ceil(filteredRows.length / pageSize);
+      const start = (currentPage - 1) * pageSize;
+      const end = Math.min(start + pageSize, filteredRows.length);
+
+      allRows.forEach(row => row.style.display = 'none');
+      filteredRows.forEach((row, idx) => {
+        row.style.display = (idx >= start && idx < end) ? '' : 'none';
+      });
+
+      document.getElementById('showingStart').textContent = filteredRows.length > 0 ? start + 1 : 0;
+      document.getElementById('showingEnd').textContent = end;
+      document.getElementById('totalRows').textContent = filteredRows.length;
+
+      document.getElementById('prevPage').classList.toggle('disabled', currentPage === 1);
+      document.getElementById('nextPage').classList.toggle('disabled', currentPage >= totalPages);
+
+      const pagination = document.getElementById('pagination');
+      const pageItems = pagination.querySelectorAll('.page-number');
+      pageItems.forEach(item => item.remove());
+
+      const nextPageLi = document.getElementById('nextPage');
+      for (let i = 1; i <= totalPages; i++) {
+        const li = document.createElement('li');
+        li.className = `page-item page-number ${i === currentPage ? 'active' : ''}`;
+        li.innerHTML = `<a class="page-link" href="#" onclick="goToPage(${i}); return false;">${i}</a>`;
+        pagination.insertBefore(li, nextPageLi);
+      }
+    }
+
+    function changePage(delta) {
+      const totalPages = Math.ceil(filteredRows.length / pageSize);
+      const newPage = currentPage + delta;
+      if (newPage >= 1 && newPage <= totalPages) {
+        currentPage = newPage;
+        updatePagination();
+      }
+    }
+
+    function goToPage(page) {
+      currentPage = page;
+      updatePagination();
+    }
+
+    document.getElementById('pageSize').addEventListener('change', function() {
+      pageSize = parseInt(this.value);
+      currentPage = 1;
+      updatePagination();
+    });
+
+    document.getElementById('addAchievementForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        const res = await fetch(`${basePath}/admin/achievements`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: document.getElementById('code').value,
+            name: document.getElementById('name').value,
+            icon: document.getElementById('icon').value,
+            description: document.getElementById('description').value,
+            category: document.getElementById('category').value,
+            tier: document.getElementById('tier').value,
+            pointsReward: parseInt(document.getElementById('pointsReward').value),
+            requirement: document.getElementById('requirement').value
+          })
+        });
+        if (res.ok) location.reload();
+        else alert('Failed to add achievement');
+      } catch (err) {
+        alert('Error adding achievement');
+      }
+    });
+
+    function editAchievement(id) {
+      const ach = achievementsData.find(a => a.id === id);
+      if (ach) {
+        document.getElementById('editId').value = ach.id;
+        document.getElementById('editCode').value = ach.code;
+        document.getElementById('editName').value = ach.name;
+        document.getElementById('editIcon').value = ach.icon;
+        document.getElementById('editDescription').value = ach.description;
+        document.getElementById('editCategory').value = ach.category;
+        document.getElementById('editTier').value = ach.tier;
+        document.getElementById('editPointsReward').value = ach.pointsReward;
+        document.getElementById('editRequirement').value = ach.requirement;
+        editModal.show();
+      }
+    }
+
+    async function saveEdit() {
+      const id = document.getElementById('editId').value;
+      try {
+        const res = await fetch(`${basePath}/admin/achievements/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: document.getElementById('editCode').value,
+            name: document.getElementById('editName').value,
+            icon: document.getElementById('editIcon').value,
+            description: document.getElementById('editDescription').value,
+            category: document.getElementById('editCategory').value,
+            tier: document.getElementById('editTier').value,
+            pointsReward: parseInt(document.getElementById('editPointsReward').value),
+            requirement: document.getElementById('editRequirement').value
+          })
+        });
+        if (res.ok) location.reload();
+        else alert('Failed to update achievement');
+      } catch (err) {
+        alert('Error updating achievement');
+      }
+    }
+
+    async function toggleAchievement(id) {
+      try {
+        await fetch(`${basePath}/admin/achievements/${id}/toggle`, { method: 'POST' });
+      } catch (err) {
+        console.error('Error toggling achievement:', err);
+      }
+    }
+
+    async function deleteAchievement(id) {
+      if (!confirm('Delete this achievement?')) return;
+      try {
+        await fetch(`${basePath}/admin/achievements/${id}`, { method: 'DELETE' });
+        location.reload();
+      } catch (err) {
+        alert('Error deleting achievement');
+      }
+    }
+
+    async function bulkActivate() {
+      try {
+        for (const id of selectedRows) {
+          const checkbox = document.getElementById(`active-${id}`);
+          if (checkbox && !checkbox.checked) {
+            await fetch(`${basePath}/admin/achievements/${id}/toggle`, { method: 'POST' });
+          }
+        }
+        location.reload();
+      } catch (err) {
+        alert('Error activating achievements');
+      }
+    }
+
+    async function bulkDeactivate() {
+      try {
+        for (const id of selectedRows) {
+          const checkbox = document.getElementById(`active-${id}`);
+          if (checkbox && checkbox.checked) {
+            await fetch(`${basePath}/admin/achievements/${id}/toggle`, { method: 'POST' });
+          }
+        }
+        location.reload();
+      } catch (err) {
+        alert('Error deactivating achievements');
+      }
+    }
+
+    async function bulkDelete() {
+      if (!confirm(`Delete ${selectedRows.size} selected achievements?`)) return;
+      try {
+        for (const id of selectedRows) {
+          await fetch(`${basePath}/admin/achievements/${id}`, { method: 'DELETE' });
+        }
+        location.reload();
+      } catch (err) {
+        alert('Error deleting achievements');
+      }
+    }
+  </script>
+</body>
+</html>
